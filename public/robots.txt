@@ -1,0 +1,23 @@
+# robots.txt para Sin Batallar
+User-agent: *
+Allow: /
+
+# Bloquear APIs
+Disallow: /api/
+
+# Bloquear paneles de administración
+Disallow: /admin/
+Disallow: /aperturador/
+Disallow: /incorporador/
+
+# Bloquear rutas internas de Next.js
+Disallow: /_next/
+
+# Permitir páginas públicas
+Allow: /
+Allow: /login
+Allow: /register/
+Allow: /main/
+
+# Sitemap (actualizar con tu dominio real)
+Sitemap: https://tudominio.com/sitemap.xml

@@ -1,0 +1,235 @@
+import { connectDB } from '@/lib/mongoose'
+import Contratista from '@/models/Contratista'
+import Incorporador from '@/models/Incorporador'
+import { NextResponse } from 'next/server'
+import bcrypt from 'bcrypt'
+import { enviarEmailBienvenidaContratista } from '@/lib/email-service'
+
+// Funciones de validación sin YUP
+function validateContratistaCreate(data) {
+  const errors = [];
+
+  if (!data.nombre) errors.push('Nombre requerido');
+  if (!data.direccion) errors.push('Dirección requerida');
+  if (!data.telefono) errors.push('Teléfono requerido');
+  if (!data.email) errors.push('Email requerido');
+  if (!data.password || data.password.length < 6) {
+    errors.push('La contraseña debe tener al menos 6 caracteres');
+  }
+  if (!data.ubicacion?.lat || !data.ubicacion?.lng) {
+    errors.push('Ubicación requerida');
+  }
+
+  return errors;
+}
+
+// GET: Listar todos los contratistas o uno por ID
+export async function GET(request) {
+  await connectDB();
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id');
+  const incorporadorId = searchParams.get('incorporadorId');
+  const sinIncorporador = searchParams.get('sinIncorporador');
+
+  if (id) {
+    const contratista = await Contratista.findById(id)
+      .populate('servicios', 'nombre descripcion categoria')
+      .populate('incorporador');
+    if (!contratista) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+    return NextResponse.json(contratista);
+  } else if (incorporadorId) {
+    const contratistas = await Contratista.find({ incorporador: incorporadorId })
+      .populate('servicios', 'nombre descripcion categoria')
+      .populate('incorporador');
+    return NextResponse.json(contratistas);
+  } else if (sinIncorporador === 'true') {
+    const contratistas = await Contratista.find({
+      $or: [
+        { incorporador: null },
+        { incorporador: { $exists: false } }
+      ]
+    })
+      .populate('servicios', 'nombre descripcion categoria')
+      .sort({ createdAt: -1 });
+    return NextResponse.json(contratistas);
+  } else {
+    const contratistas = await Contratista.find({})
+      .populate('servicios', 'nombre descripcion categoria')
+      .populate('incorporador');
+    return NextResponse.json(contratistas);
+  }
+}
+
+// POST: Crear un nuevo contratista
+export async function POST(req) {
+  await connectDB();
+  const data = await req.json();
+
+  // Agregar la dirección a la ubicación si no está presente
+  if (data.ubicacion && !data.ubicacion.direccion) {
+    data.ubicacion.direccion = data.direccion;
+  }
+
+  // Validar
+  const errors = validateContratistaCreate(data);
+  if (errors.length > 0) {
+    return NextResponse.json({ error: 'Datos inválidos', details: errors }, { status: 400 });
+  }
+
+  // Hashear la contraseña antes de guardar
+  if (data.password) {
+    data.password = await bcrypt.hash(data.password, 12);
+  }
+
+  const nuevoContratista = new Contratista(data);
+  await nuevoContratista.save();
+
+  // Enviar email de bienvenida al contratista
+  enviarEmailBienvenidaContratista({
+    email: data.email,
+    nombre: data.nombre
+  }).catch(err => console.error('Error enviando email de bienvenida contratista:', err));
+
+  // Si tiene incorporador, actualizar las estadísticas
+  if (data.incorporador) {
+    try {
+      const incorporador = await Incorporador.findById(data.incorporador);
+      if (incorporador) {
+        incorporador.contratistasIncorporados.push(nuevoContratista._id);
+        incorporador.estadisticas.totalContratistasIncorporados = incorporador.contratistasIncorporados.length;
+        incorporador.estadisticas.contratistasActivos = await Contratista.countDocuments({
+          incorporador: data.incorporador,
+          activo: true
+        });
+        await incorporador.save();
+      }
+    } catch (error) {
+      console.error('Error actualizando estadísticas del incorporador:', error);
+    }
+  }
+
+  return NextResponse.json({ message: 'Solicitud registrada exitosamente, Sin Batallar te contactará', contratista: nuevoContratista });
+}
+
+// PUT: Actualizar un contratista existente
+export async function PUT(req) {
+  await connectDB();
+
+  try {
+    const data = await req.json();
+
+    if (!data._id) {
+      return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
+    }
+
+    // Obtener el contratista actual para comparar cambios
+    const contratistaActual = await Contratista.findById(data._id);
+    if (!contratistaActual) {
+      return NextResponse.json({ error: 'Contratista no encontrado' }, { status: 404 });
+    }
+
+    // Si se incluye password, hashearlo
+    if (data.password) {
+      data.password = await bcrypt.hash(data.password, 12);
+    }
+
+    const contratista = await Contratista.findByIdAndUpdate(data._id, data, { new: true });
+
+    // Si cambió el incorporador, actualizar estadísticas
+    if (data.incorporador !== undefined && data.incorporador !== contratistaActual.incorporador?.toString()) {
+      // Quitar del incorporador anterior
+      if (contratistaActual.incorporador) {
+        try {
+          const incorporadorAnterior = await Incorporador.findById(contratistaActual.incorporador);
+          if (incorporadorAnterior) {
+            incorporadorAnterior.contratistasIncorporados = incorporadorAnterior.contratistasIncorporados.filter(
+              id => id.toString() !== data._id
+            );
+            incorporadorAnterior.estadisticas.totalContratistasIncorporados = incorporadorAnterior.contratistasIncorporados.length;
+            incorporadorAnterior.estadisticas.contratistasActivos = await Contratista.countDocuments({
+              incorporador: contratistaActual.incorporador,
+              activo: true
+            });
+            await incorporadorAnterior.save();
+          }
+        } catch (error) {
+          console.error('Error actualizando incorporador anterior:', error);
+        }
+      }
+
+      // Agregar al nuevo incorporador
+      if (data.incorporador) {
+        try {
+          const incorporadorNuevo = await Incorporador.findById(data.incorporador);
+          if (incorporadorNuevo) {
+            if (!incorporadorNuevo.contratistasIncorporados.includes(data._id)) {
+              incorporadorNuevo.contratistasIncorporados.push(data._id);
+            }
+            incorporadorNuevo.estadisticas.totalContratistasIncorporados = incorporadorNuevo.contratistasIncorporados.length;
+            incorporadorNuevo.estadisticas.contratistasActivos = await Contratista.countDocuments({
+              incorporador: data.incorporador,
+              activo: true
+            });
+            await incorporadorNuevo.save();
+          }
+        } catch (error) {
+          console.error('Error actualizando incorporador nuevo:', error);
+        }
+      }
+    }
+
+    // Si cambió el estado activo, actualizar estadísticas del incorporador
+    if (data.activo !== undefined && data.activo !== contratistaActual.activo && contratistaActual.incorporador) {
+      try {
+        const incorporador = await Incorporador.findById(contratistaActual.incorporador);
+        if (incorporador) {
+          incorporador.estadisticas.contratistasActivos = await Contratista.countDocuments({
+            incorporador: contratistaActual.incorporador,
+            activo: true
+          });
+          await incorporador.save();
+        }
+      } catch (error) {
+        console.error('Error actualizando estadísticas del incorporador:', error);
+      }
+    }
+
+    return NextResponse.json(contratista);
+  } catch (error) {
+    console.error('Error en PUT contratistas:', error);
+    return NextResponse.json({ error: 'Error interno del servidor', details: error.message }, { status: 500 });
+  }
+}
+
+// DELETE: Eliminar un contratista
+export async function DELETE(req) {
+  await connectDB();
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+  if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
+
+  // Obtener el contratista antes de eliminarlo
+  const contratista = await Contratista.findById(id);
+
+  if (contratista && contratista.incorporador) {
+    try {
+      const incorporador = await Incorporador.findById(contratista.incorporador);
+      if (incorporador) {
+        incorporador.contratistasIncorporados = incorporador.contratistasIncorporados.filter(
+          contratistaId => contratistaId.toString() !== id
+        );
+        incorporador.estadisticas.totalContratistasIncorporados = incorporador.contratistasIncorporados.length;
+        incorporador.estadisticas.contratistasActivos = await Contratista.countDocuments({
+          incorporador: contratista.incorporador,
+          activo: true
+        });
+        await incorporador.save();
+      }
+    } catch (error) {
+      console.error('Error actualizando estadísticas del incorporador al eliminar:', error);
+    }
+  }
+
+  await Contratista.findByIdAndDelete(id);
+  return NextResponse.json({ message: 'Eliminado' }, { status: 200 });
+}
