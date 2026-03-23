@@ -6,6 +6,16 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || 'tu-clave-secreta-muy-segura-aqui'
 );
 
+// Función para agregar headers CORS dinámicamente
+function addCorsHeaders(request, response) {
+  const origin = request.headers.get('origin') || '*';
+  response.headers.set('Access-Control-Allow-Origin', origin);
+  response.headers.set('Access-Control-Allow-Credentials', 'true');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, X-CSRF-Token, Date, X-Api-Version');
+  return response;
+}
+
 // Rutas protegidas y públicas
 const protectedRoutes = ['/main', '/admin', '/contratista', '/aperturador', '/incorporador'];
 const publicRoutes = ['/', '/login', '/register', '/politicas-de-privacidad', '/api/auth/login', '/api/auth/register'];
@@ -22,9 +32,14 @@ async function verifyTokenMiddleware(token) {
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
 
-  // Rutas de API públicas - permitir siempre
+  // Manejar Preflight (OPTIONS) requests para rutas API
+  if (request.method === 'OPTIONS' && pathname.startsWith('/api/')) {
+    return addCorsHeaders(request, new NextResponse(null, { status: 200 }));
+  }
+
+  // Rutas de API públicas - permitir siempre y agregar headers CORS
   if (pathname.startsWith('/api/') && !pathname.startsWith('/api/protected/')) {
-    return NextResponse.next();
+    return addCorsHeaders(request, NextResponse.next());
   }
 
   // Rutas públicas - permitir siempre
@@ -56,6 +71,9 @@ export async function middleware(request) {
 
   // Si no hay token, redirigir a login
   if (!token) {
+    if (pathname.startsWith('/api/')) {
+      return addCorsHeaders(request, NextResponse.json({ error: 'Unauthorized' }, { status: 401 }));
+    }
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
@@ -65,7 +83,12 @@ export async function middleware(request) {
   const payload = await verifyTokenMiddleware(token);
 
   if (!payload) {
-    // Token inválido - redirigir a login
+    // Token inválido - redirigir a login o emitir 401 para API
+    if (pathname.startsWith('/api/')) {
+      const response = NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+      response.cookies.delete('auth-token');
+      return addCorsHeaders(request, response);
+    }
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     const response = NextResponse.redirect(loginUrl);
@@ -105,7 +128,11 @@ export async function middleware(request) {
     return NextResponse.redirect(new URL('/main/servicios-programables', request.url));
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  if (pathname.startsWith('/api/')) {
+    return addCorsHeaders(request, response);
+  }
+  return response;
 }
 
 function redirectByRole(role, request) {
@@ -123,6 +150,7 @@ function redirectByRole(role, request) {
 
 export const config = {
   matcher: [
+    '/api/:path*',
     '/main/:path*',
     '/admin/:path*',
     '/contratista/:path*',
