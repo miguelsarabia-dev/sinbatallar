@@ -1,39 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useSession } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { FaTools, FaCalendarAlt, FaRobot, FaMobileAlt, FaArrowRight } from 'react-icons/fa';
-import useSessionPersistence from '../hooks/useSessionPersistence';
+import { FaTools, FaCalendarAlt, FaRobot, FaArrowRight } from 'react-icons/fa';
 
 export default function LandingPage() {
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [showInstallButton, setShowInstallButton] = useState(false);
   const router = useRouter();
-
-  // Hooks de sesión
   const { data: session, status } = useSession();
-  const {
-    session: persistentSession,
-    isLoading: isPersistenceLoading,
-    isAuthenticated
-  } = useSessionPersistence();
 
-  // Efecto para redirigir si ya hay sesión activa
   useEffect(() => {
-    // Si está cargando, esperar
-    if (status === 'loading' || isPersistenceLoading) return;
+    if (status === 'loading') return;
 
-    // Si hay sesión activa (NextAuth o persistente), redirigir al dashboard correspondiente
-    if (session || persistentSession || isAuthenticated) {
-      const userSession = session || persistentSession;
-      const userRole = userSession?.user?.role || userSession?.user?.userType;
+    if (session) {
+      const userRole = session.user?.role || session.user?.userType;
 
-      console.log('[Landing] Sesión detectada, redirigiendo...', { userRole, hasSession: !!session, hasPersistent: !!persistentSession });
-
-      // Redirigir según el rol del usuario
       switch (userRole) {
         case 'admin':
           router.push('/admin');
@@ -53,67 +36,10 @@ export default function LandingPage() {
           router.push('/main/servicios-programables');
           break;
       }
-      return;
     }
-  }, [session, persistentSession, isAuthenticated, status, isPersistenceLoading, router]);
+  }, [session, status, router]);
 
-  // Efecto para manejar instalación PWA
-  useEffect(() => {
-    // Solo configurar PWA si no hay sesión activa (para evitar conflictos)
-    if (session || persistentSession || isAuthenticated) return;
-
-    // Detectar si la app ya está instalada
-    const isInStandaloneMode = () => {
-      return (
-        window.matchMedia('(display-mode: standalone)').matches ||
-        window.navigator.standalone === true ||
-        document.referrer.includes('android-app://')
-      );
-    };
-
-    if (isInStandaloneMode()) {
-      setShowInstallButton(false);
-      return;
-    }
-
-    // Capturar el evento beforeinstallprompt
-    const handler = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstallButton(true);
-      console.log('beforeinstallprompt event capturado');
-    };
-
-    window.addEventListener('beforeinstallprompt', handler);
-
-    // Listener para cuando se instale la app
-    window.addEventListener('appinstalled', () => {
-      console.log('PWA instalada con éxito');
-      setShowInstallButton(false);
-      setDeferredPrompt(null);
-    });
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handler);
-    };
-  }, [session, persistentSession, isAuthenticated]);
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-
-    console.log(`Usuario eligió: ${outcome}`);
-
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-      setShowInstallButton(false);
-    }
-  };
-
-  // Mostrar loading mientras se verifica la sesión
-  if (status === 'loading' || isPersistenceLoading) {
+  if (status === 'loading') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-secondary via-secondary-light to-accent flex items-center justify-center">
         <div className="text-center text-white">
@@ -125,8 +51,7 @@ export default function LandingPage() {
     );
   }
 
-  // Si hay sesión activa, no mostrar el landing (la redirección está en proceso)
-  if (session || persistentSession || isAuthenticated) {
+  if (session) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-secondary via-secondary-light to-accent flex items-center justify-center">
         <div className="text-center text-white">
@@ -186,16 +111,6 @@ export default function LandingPage() {
             </p>
           </div>
 
-          {/* Badge PWA */}
-          <div className="flex justify-center">
-            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-6 py-3 inline-flex items-center gap-2">
-              <FaMobileAlt className="text-primary text-xl" />
-              <p className="text-white text-sm md:text-base font-medium">
-                Ya puedes instalar <span className="font-bold">Sin Batallar</span> en tu dispositivo móvil
-              </p>
-            </div>
-          </div>
-
           {/* Botones de Acción */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center max-w-2xl mx-auto">
             <Link
@@ -211,16 +126,6 @@ export default function LandingPage() {
             >
               Iniciar Sesión
             </Link>
-
-            {showInstallButton && (
-              <button
-                onClick={handleInstallClick}
-                className="w-full sm:w-auto bg-white hover:bg-neutral-light text-secondary font-bold py-4 px-8 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 text-lg flex items-center justify-center gap-2"
-              >
-                <FaMobileAlt className="text-xl" />
-                Instalar App
-              </button>
-            )}
           </div>
 
           {/* Features */}

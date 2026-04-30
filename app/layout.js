@@ -2,10 +2,6 @@
 import { Geist, Geist_Mono, Montserrat } from "next/font/google";
 import "./globals.css";
 import ProvidersWrapper from "../components/ProvidersWrapper";
-import PWARegister from "../components/PWARegister";
-import InstallPWA from "../components/ui/InstallPWA";
-import SessionPersistenceWrapper from "../components/SessionPersistenceWrapper";
-import OfflineIndicator from "../components/ui/OfflineIndicator";
 import { NotificationProvider } from "../components/ui/NotificationToast";
 
 const geistSans = Geist({
@@ -27,13 +23,7 @@ const montserrat = Montserrat({
 export const metadata = {
   title: "Sin Batallar - Servicios del hogar sin complicaciones",
   description: "Encuentra profesionales certificados para el mantenimiento y reparación de tu hogar",
-  manifest: "/manifest.json",
   applicationName: "Sin Batallar",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "Sin Batallar",
-  },
   formatDetection: {
     telephone: true,
     date: true,
@@ -65,15 +55,10 @@ export default function RootLayout({ children }) {
   return (
     <html lang="es">
       <body className={`${geistSans.variable} ${geistMono.variable} ${montserrat.variable} antialiased`}>
-        <PWARegister />
-        <InstallPWA />
-        <OfflineIndicator />
         <ProvidersWrapper>
-          <SessionPersistenceWrapper>
-            <NotificationProvider>
-              {children}
-            </NotificationProvider>
-          </SessionPersistenceWrapper>
+          <NotificationProvider>
+            {children}
+          </NotificationProvider>
         </ProvidersWrapper>
       </body>
     </html>

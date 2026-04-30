@@ -7,7 +7,6 @@ export { default as PaymentModal } from './PaymentModal';
 export { default as PaymentInfoDropdown } from './PaymentInfoDropdown';
 export { default as CalificacionBadge } from './CalificacionBadge';
 export { default as NotificationPrompt } from './NotificationPrompt';
-export { default as InstallPWA } from './InstallPWA';
 
 // Input con icono reutilizable
 export function InputWithIcon({ 

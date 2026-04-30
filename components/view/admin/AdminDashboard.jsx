@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { signOut } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import useSessionPersistence from '../../../hooks/useSessionPersistence';
+import { useAuth } from '@/contexts/AuthContext';
 import { Modal } from "../../ui";
 import { useModal } from "../../../hooks/useModal";
 import { formatDate, formatDateTime, isValidDate } from "../../../lib/date-utils";
@@ -22,7 +22,7 @@ import FinanzasDashboard from './finanzas/FinanzasDashboard';
 
 export default function AdminDashboard() {
   const { modalState, showError, showSuccess, showConfirm, hideModal } = useModal();
-  const { session, status, isAuthenticated, clearPersistedSession } = useSessionPersistence();
+  const { session, status } = useAuth();
   const router = useRouter();
 
   // Helper para parsear respuestas JSON de forma segura
@@ -131,20 +131,10 @@ export default function AdminDashboard() {
   // Función para cerrar sesión correctamente
   const handleLogout = async () => {
     try {
-      // 1. Limpiar sesión persistente primero
-      await clearPersistedSession();
-
-      // 2. Cerrar sesión de NextAuth
-      await signOut({
-        redirect: false,
-        callbackUrl: '/login'
-      });
-
-      // 3. Redirigir manualmente
+      await signOut({ redirect: false, callbackUrl: '/login' });
       router.push('/login');
     } catch (error) {
       console.error('Error during logout:', error);
-      // Fallback: forzar redirección
       router.push('/login');
     }
   };
@@ -153,7 +143,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (status === 'loading') return;
 
-    if (!session || !isAuthenticated) {
+    if (!session) {
       console.log('No authenticated session found, redirecting to login');
       router.push('/login');
       return;
