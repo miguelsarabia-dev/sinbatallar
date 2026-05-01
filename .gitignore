@@ -53,5 +53,6 @@ next-env.d.ts
 
 /antigravity
 /CLAUDE.md
+/CLAUDE.md
 *.local
 /.claude/settings.local.json

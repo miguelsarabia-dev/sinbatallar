@@ -32,24 +32,13 @@ export default function LandingPage() {
           break;
         case 'cliente':
         case 'user':
-        default:
           router.push('/main/servicios-programables');
+          break;
+        default:
           break;
       }
     }
   }, [session, status, router]);
-
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-secondary via-secondary-light to-accent flex items-center justify-center">
-        <div className="text-center text-white">
-          <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="font-medium">Cargando Sin Batallar...</p>
-          <p className="text-sm text-white/70 mt-2">Verificando sesión</p>
-        </div>
-      </div>
-    );
-  }
 
   if (session) {
     return (

@@ -15,19 +15,27 @@ export function AuthProvider({ children }) {
 
     // Cargar usuario de localStorage al iniciar
     useEffect(() => {
-        const loadUser = () => {
+        const loadUser = async () => {
             try {
                 const token = localStorage.getItem('auth-token');
                 const userData = localStorage.getItem('auth-user');
 
                 if (token && userData) {
+                    // Verify token hasn't expired by checking the payload
+                    const [, payloadB64] = token.split('.');
+                    if (payloadB64) {
+                        const payload = JSON.parse(atob(payloadB64));
+                        if (payload.exp && payload.exp * 1000 < Date.now()) {
+                            throw new Error('Token expirado');
+                        }
+                    }
                     setUser(JSON.parse(userData));
                     document.cookie = `auth-token=${token}; path=/; max-age=${7 * 24 * 60 * 60}`;
                 }
             } catch (error) {
-                console.error('Error cargando sesión:', error);
                 localStorage.removeItem('auth-token');
                 localStorage.removeItem('auth-user');
+                document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
             } finally {
                 setLoading(false);
             }
