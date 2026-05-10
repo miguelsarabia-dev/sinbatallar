@@ -15,7 +15,8 @@ const cotizacionSchema = new mongoose.Schema({
     descripcion: String,
     cantidad: { type: Number, required: true, min: 0 },
     precioPorUnidad: { type: Number, required: true, min: 0 },
-    total: { type: Number, required: true, min: 0 }
+    total: { type: Number, required: true, min: 0 },
+    materialCatalogoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Material', default: null }
   }],
   manoDeObra: { type: Number, default: 0, min: 0 },
 

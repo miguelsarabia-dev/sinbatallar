@@ -56,6 +56,39 @@ export async function POST(request) {
         userType: 'contratista'
       };
 
+    } else if (userType === 'ferretero') {
+      if (!email) {
+        return NextResponse.json(
+          { success: false, message: 'Email requerido' },
+          { status: 400 }
+        );
+      }
+
+      user = await User.findOne({ email: email.toLowerCase(), role: 'ferretero' });
+      if (!user) {
+        return NextResponse.json(
+          { success: false, message: 'Ferretero no encontrado' },
+          { status: 401 }
+        );
+      }
+
+      const isValid = await comparePassword(password, user.password);
+      if (!isValid) {
+        return NextResponse.json(
+          { success: false, message: 'Contraseña incorrecta' },
+          { status: 401 }
+        );
+      }
+
+      userData = {
+        id: user._id.toString(),
+        email: user.email,
+        nombre: user.nombre,
+        telefono: user.telefono,
+        role: 'ferretero',
+        userType: 'ferretero'
+      };
+
     } else {
       // Login de usuario normal (puede usar email o teléfono)
       if (email && email.includes('@')) {
