@@ -12,13 +12,14 @@ import {
   FaShieldAlt, FaCog, FaUsers, FaClipboardList, FaChartBar,
   FaSignOutAlt, FaPlus, FaEdit, FaTrash, FaEye, FaSync, FaUserPlus,
   FaTimes, FaCar, FaBars, FaWarehouse, FaTools, FaFileAlt, FaBan,
-  FaPlay, FaPause, FaMapMarkedAlt, FaMoneyBillWave, FaCalendarAlt
+  FaPlay, FaPause, FaMapMarkedAlt, FaMoneyBillWave, FaCalendarAlt, FaStore
 } from 'react-icons/fa';
 import CreateServiceForm from './forms/CreateServiceForm';
 import EditServiceForm from './forms/EditServiceForm';
 import UsersManager from './users/UsersManager';
 import ContratistasManager from './contratistas/ContratistasManager';
 import FinanzasDashboard from './finanzas/FinanzasDashboard';
+import FerretersManager from './ferreteros/FerretersManager';
 
 export default function AdminDashboard() {
   const { modalState, showError, showSuccess, showConfirm, hideModal } = useModal();
@@ -1573,6 +1574,12 @@ export default function AdminDashboard() {
       label: 'Incorporadores',
       icon: <FaUsers />,
       count: incorporadores.length
+    },
+    {
+      key: 'ferreteros',
+      label: 'Ferreterías',
+      icon: <FaStore />,
+      count: null
     }
   ];
 
@@ -1727,6 +1734,15 @@ export default function AdminDashboard() {
             onUpdateContratista={handleUpdateContratista}
             onToggleContratistaStatus={handleToggleContratistaStatus}
             serviciosDisponibles={servicios}
+            showError={showError}
+            showSuccess={showSuccess}
+            showConfirm={showConfirm}
+          />
+        );
+
+      case 'ferreteros':
+        return (
+          <FerretersManager
             showError={showError}
             showSuccess={showSuccess}
             showConfirm={showConfirm}

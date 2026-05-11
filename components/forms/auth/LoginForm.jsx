@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { FaUserAlt, FaLock, FaEye, FaEyeSlash, FaTools, FaUser } from 'react-icons/fa';
+import { FaUserAlt, FaLock, FaEye, FaEyeSlash, FaTools, FaUser, FaStore } from 'react-icons/fa';
 import { GoogleLogin } from '@react-oauth/google';
 
 export default function LoginForm() {
@@ -67,20 +67,28 @@ export default function LoginForm() {
           return;
         }
 
-        console.log('🏢 Login como contratista');
-        const result = await signIn({
-          email: identifier,
-          password,
-          userType: 'contratista'
-        });
-
-        console.log('🏢 Resultado login contratista:', result);
+        const result = await signIn({ email: identifier, password, userType: 'contratista' });
 
         if (result?.error) {
           setError(result.error);
         } else if (result?.success) {
-          console.log('✅ Login contratista exitoso, redirigiendo...');
           window.location.href = '/contratista/dashboard';
+        } else {
+          setError('Error en el inicio de sesión');
+        }
+      } else if (userType === 'ferretero') {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) {
+          setError('Ingresa un email válido');
+          setLoading(false);
+          return;
+        }
+
+        const result = await signIn({ email: identifier, password, userType: 'ferretero' });
+
+        if (result?.error) {
+          setError(result.error);
+        } else if (result?.success) {
+          window.location.href = '/ferretero';
         } else {
           setError('Error en el inicio de sesión');
         }
@@ -170,28 +178,39 @@ export default function LoginForm() {
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Tipo de cuenta
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setUserType('usuario')}
-                    className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 ${userType === 'usuario'
+                    className={`p-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-1.5 ${userType === 'usuario'
                       ? 'border-primary bg-primary/10 text-primary'
                       : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
                       }`}
                   >
-                    <FaUser size={24} />
-                    <span className="text-sm font-medium">Usuario</span>
+                    <FaUser size={20} />
+                    <span className="text-xs font-medium">Usuario</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setUserType('contratista')}
-                    className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 ${userType === 'contratista'
+                    className={`p-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-1.5 ${userType === 'contratista'
                       ? 'border-primary bg-primary/10 text-primary'
                       : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
                       }`}
                   >
-                    <FaTools size={24} />
-                    <span className="text-sm font-medium">Contratista</span>
+                    <FaTools size={20} />
+                    <span className="text-xs font-medium">Contratista</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUserType('ferretero')}
+                    className={`p-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-1.5 ${userType === 'ferretero'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
+                      }`}
+                  >
+                    <FaStore size={20} />
+                    <span className="text-xs font-medium">Ferretería</span>
                   </button>
                 </div>
               </div>
@@ -223,7 +242,7 @@ export default function LoginForm() {
               {/* Email/Phone Input */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {userType === 'contratista' ? 'Email del Contratista' : 'Email o Teléfono'}
+                  {userType === 'contratista' ? 'Email del Contratista' : userType === 'ferretero' ? 'Email de la Ferretería' : 'Email o Teléfono'}
                 </label>
                 <div className="input-container">
                   <div className="input-icon-left">
@@ -233,7 +252,11 @@ export default function LoginForm() {
                     type="text"
                     value={identifier}
                     onChange={e => setIdentifier(e.target.value)}
-                    placeholder={userType === 'contratista' ? 'contratista@email.com' : 'tu@email.com o 5512345678'}
+                    placeholder={
+                      userType === 'contratista' ? 'contratista@email.com' :
+                      userType === 'ferretero' ? 'ferreteria@email.com' :
+                      'tu@email.com o 5512345678'
+                    }
                     className="w-full h-14 pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl bg-white text-gray-900 placeholder-gray-500 transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
                     required
                     autoComplete="username"
@@ -318,6 +341,15 @@ export default function LoginForm() {
                 className="text-primary font-semibold hover:text-primary-hover"
               >
                 Registra tu empresa
+              </a>
+            </div>
+            <div className="text-gray-600 text-sm">
+              ¿Tienes una ferretería?{' '}
+              <a
+                href="/register/FerreteroRegister"
+                className="text-primary font-semibold hover:text-primary-hover"
+              >
+                Únete como proveedor
               </a>
             </div>
           </div>

@@ -319,192 +319,7 @@ export default function FerreroDashboard() {
     );
   }
 
-  // ─── Formulario (modal) ───────────────────────────────────────────────────────
-  const FormMaterial = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl my-4">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center rounded-t-xl">
-          <h3 className="text-lg font-bold text-gray-900">
-            {editandoId ? 'Editar material' : 'Nuevo material'}
-          </h3>
-          <button onClick={cerrarForm} className="text-gray-400 hover:text-gray-600 p-1">
-            <FaTimes size={20} />
-          </button>
-        </div>
-
-        <form onSubmit={guardarMaterial} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-          {/* Nombre */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-            <input
-              type="text"
-              value={form.nombre}
-              onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="Ej: Cemento Portland 50kg"
-              required
-            />
-          </div>
-
-          {/* Descripción */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-            <textarea
-              value={form.descripcion}
-              onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))}
-              rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-              placeholder="Descripción opcional del material"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Categoría */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Categoría *</label>
-              <select
-                value={form.categoria}
-                onChange={e => setForm(p => ({ ...p, categoria: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                required
-              >
-                <option value="">Seleccionar...</option>
-                {categorias.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-                <option value="__nueva__">+ Nueva categoría</option>
-              </select>
-              {form.categoria === '__nueva__' && (
-                <input
-                  type="text"
-                  value={form.categoriaPersonalizada}
-                  onChange={e => setForm(p => ({ ...p, categoriaPersonalizada: e.target.value }))}
-                  className="mt-2 w-full px-3 py-2 border border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="Nombre de la nueva categoría"
-                  required
-                />
-              )}
-            </div>
-
-            {/* Marca */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
-              <input
-                type="text"
-                value={form.marca}
-                onChange={e => setForm(p => ({ ...p, marca: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="Ej: CEMEX, 3M, Truper..."
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Unidad */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Unidad *</label>
-              <select
-                value={form.unidad}
-                onChange={e => setForm(p => ({ ...p, unidad: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                required
-              >
-                {UNIDADES.map(u => (
-                  <option key={u.value} value={u.value}>{u.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Precio */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Precio (MXN) *</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
-                <input
-                  type="number"
-                  value={form.precio}
-                  onChange={e => setForm(p => ({ ...p, precio: e.target.value }))}
-                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                  required
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Imagen */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Imagen</label>
-            <div className="flex items-start gap-4">
-              {imagenPreview ? (
-                <div className="relative flex-shrink-0">
-                  <img
-                    src={imagenPreview}
-                    alt="preview"
-                    className="w-20 h-20 object-cover rounded-lg border border-gray-200"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => { setImagenFile(null); setImagenPreview(''); setForm(p => ({ ...p, imagenUrl: '', imagenPublicId: '' })); }}
-                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5"
-                  >
-                    <FaTimes size={10} />
-                  </button>
-                </div>
-              ) : (
-                <div className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 flex-shrink-0">
-                  <FaImage size={24} />
-                </div>
-              )}
-              <label className="flex-1 cursor-pointer">
-                <input type="file" accept="image/*" onChange={handleImagenChange} className="hidden" />
-                <div className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 text-center cursor-pointer">
-                  {imagenPreview ? 'Cambiar imagen' : 'Seleccionar imagen'}
-                </div>
-                <p className="text-xs text-gray-400 mt-1">JPG, PNG o WebP. Máx 5MB.</p>
-              </label>
-            </div>
-          </div>
-
-          {/* Activo */}
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setForm(p => ({ ...p, activo: !p.activo }))}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.activo ? 'bg-green-500' : 'bg-gray-300'}`}
-            >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${form.activo ? 'translate-x-6' : 'translate-x-1'}`} />
-            </button>
-            <span className="text-sm text-gray-700">{form.activo ? 'Activo en catálogo' : 'Inactivo (oculto)'}</span>
-          </div>
-
-          {/* Botones */}
-          <div className="flex gap-3 pt-2 sticky bottom-0 bg-white border-t border-gray-100 -mx-6 px-6 pb-2">
-            <button
-              type="button"
-              onClick={cerrarForm}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loadingForm || subiendoImagen}
-              className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2 font-medium"
-            >
-              {(loadingForm || subiendoImagen) ? (
-                <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />{subiendoImagen ? 'Subiendo imagen...' : 'Guardando...'}</>
-              ) : (
-                <><FaSave size={14} />{editandoId ? 'Guardar cambios' : 'Crear material'}</>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+  // FormMaterial se renderiza directamente en JSX (no como sub-componente) para evitar remontaje en cada keystroke
 
   // ─── Render principal ─────────────────────────────────────────────────────────
   return (
@@ -819,8 +634,192 @@ export default function FerreroDashboard() {
         </div>
       </div>
 
-      {/* Modal formulario */}
-      {showForm && <FormMaterial />}
+      {/* Modal formulario — inline para evitar remontaje en cada keystroke */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl my-4">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center rounded-t-xl">
+              <h3 className="text-lg font-bold text-gray-900">
+                {editandoId ? 'Editar material' : 'Nuevo material'}
+              </h3>
+              <button onClick={cerrarForm} className="text-gray-400 hover:text-gray-600 p-1">
+                <FaTimes size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={guardarMaterial} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              {/* Nombre */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                <input
+                  type="text"
+                  value={form.nombre}
+                  onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Ej: Cemento Portland 50kg"
+                  required
+                />
+              </div>
+
+              {/* Descripción */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                <textarea
+                  value={form.descripcion}
+                  onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                  placeholder="Descripción opcional del material"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Categoría */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Categoría *</label>
+                  <select
+                    value={form.categoria}
+                    onChange={e => setForm(p => ({ ...p, categoria: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  >
+                    <option value="">Seleccionar...</option>
+                    {categorias.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                    <option value="__nueva__">+ Nueva categoría</option>
+                  </select>
+                  {form.categoria === '__nueva__' && (
+                    <input
+                      type="text"
+                      value={form.categoriaPersonalizada}
+                      onChange={e => setForm(p => ({ ...p, categoriaPersonalizada: e.target.value }))}
+                      className="mt-2 w-full px-3 py-2 border border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      placeholder="Nombre de la nueva categoría"
+                      required
+                    />
+                  )}
+                </div>
+
+                {/* Marca */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
+                  <input
+                    type="text"
+                    value={form.marca}
+                    onChange={e => setForm(p => ({ ...p, marca: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="Ej: CEMEX, 3M, Truper..."
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Unidad */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unidad *</label>
+                  <select
+                    value={form.unidad}
+                    onChange={e => setForm(p => ({ ...p, unidad: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  >
+                    {UNIDADES.map(u => (
+                      <option key={u.value} value={u.value}>{u.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Precio */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Precio (MXN) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
+                    <input
+                      type="number"
+                      value={form.precio}
+                      onChange={e => setForm(p => ({ ...p, precio: e.target.value }))}
+                      className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      placeholder="0.00"
+                      min="0"
+                      step="0.01"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Imagen */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Imagen</label>
+                <div className="flex items-start gap-4">
+                  {imagenPreview ? (
+                    <div className="relative flex-shrink-0">
+                      <img
+                        src={imagenPreview}
+                        alt="preview"
+                        className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { setImagenFile(null); setImagenPreview(''); setForm(p => ({ ...p, imagenUrl: '', imagenPublicId: '' })); }}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5"
+                      >
+                        <FaTimes size={10} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 flex-shrink-0">
+                      <FaImage size={24} />
+                    </div>
+                  )}
+                  <label className="flex-1 cursor-pointer">
+                    <input type="file" accept="image/*" onChange={handleImagenChange} className="hidden" />
+                    <div className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 text-center cursor-pointer">
+                      {imagenPreview ? 'Cambiar imagen' : 'Seleccionar imagen'}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">JPG, PNG o WebP. Máx 5MB.</p>
+                  </label>
+                </div>
+              </div>
+
+              {/* Activo */}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setForm(p => ({ ...p, activo: !p.activo }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.activo ? 'bg-green-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${form.activo ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+                <span className="text-sm text-gray-700">{form.activo ? 'Activo en catálogo' : 'Inactivo (oculto)'}</span>
+              </div>
+
+              {/* Botones */}
+              <div className="flex gap-3 pt-2 sticky bottom-0 bg-white border-t border-gray-100 -mx-6 px-6 pb-2">
+                <button
+                  type="button"
+                  onClick={cerrarForm}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loadingForm || subiendoImagen}
+                  className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2 font-medium"
+                >
+                  {(loadingForm || subiendoImagen) ? (
+                    <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />{subiendoImagen ? 'Subiendo imagen...' : 'Guardando...'}</>
+                  ) : (
+                    <><FaSave size={14} />{editandoId ? 'Guardar cambios' : 'Crear material'}</>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal confirmaciones */}
       <Modal {...modalState} onClose={hideModal} />

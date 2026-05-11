@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import User from '@/models/User';
 import Contratista from '@/models/Contratista';
+import Ferretero from '@/models/Ferretero';
 import { signToken, comparePassword } from '@/lib/auth';
 
 export async function POST(request) {
@@ -77,6 +78,15 @@ export async function POST(request) {
         return NextResponse.json(
           { success: false, message: 'Contraseña incorrecta' },
           { status: 401 }
+        );
+      }
+
+      // Verificar que la cuenta esté activa (aprobada por admin)
+      const perfilFerretero = await Ferretero.findOne({ user: user._id });
+      if (!perfilFerretero || !perfilFerretero.activo) {
+        return NextResponse.json(
+          { success: false, message: 'Tu cuenta está pendiente de aprobación. Te notificaremos cuando esté activa.' },
+          { status: 403 }
         );
       }
 
