@@ -9,7 +9,7 @@ const userSchema = new mongoose.Schema({
   googleId: { type: String, unique: true, sparse: true }, // Google OAuth ID
   role: {
     type: String,
-    enum: ['cliente', 'admin', 'aperturador', 'incorporador'],
+    enum: ['cliente', 'admin', 'aperturador', 'incorporador', 'ferretero'],
     default: 'cliente'
   },
   fotoUrl: { type: String, trim: true },

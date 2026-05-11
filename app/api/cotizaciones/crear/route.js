@@ -64,7 +64,8 @@ export async function POST(request) {
         descripcion: material.descripcion || '',
         cantidad: parseFloat(material.cantidad) || 0,
         precioPorUnidad: parseFloat(material.precio) || 0,
-        total: parseFloat(material.total) || 0
+        total: parseFloat(material.total) || 0,
+        materialCatalogoId: material.materialCatalogoId || null
       }));
       cotizacion.descripcionTrabajo = descripcion || '';
 
@@ -85,7 +86,8 @@ export async function POST(request) {
           descripcion: material.descripcion || '',
           cantidad: parseFloat(material.cantidad) || 0,
           precioPorUnidad: parseFloat(material.precio) || 0,
-          total: parseFloat(material.total) || 0
+          total: parseFloat(material.total) || 0,
+          materialCatalogoId: material.materialCatalogoId || null
         })),
         descripcionTrabajo: descripcion || '',
         imagenesCotizacion,
