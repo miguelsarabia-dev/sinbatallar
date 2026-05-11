@@ -2,7 +2,8 @@
 'use client';
 
 import { useState } from 'react';
-import { FaDollarSign, FaPlus, FaTrash, FaSave, FaTimes, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaDollarSign, FaPlus, FaTrash, FaSave, FaTimes, FaMapMarkerAlt, FaBoxOpen } from 'react-icons/fa';
+import BuscadorMateriales from '@/components/ui/BuscadorMateriales';
 
 export default function CrearCotizacion({ cita, onSave, onCancel, isLoading = false }) {
   const [cotizacion, setCotizacion] = useState({
@@ -17,16 +18,29 @@ export default function CrearCotizacion({ cita, onSave, onCancel, isLoading = fa
 
   const [errores, setErrores] = useState({});
 
-  const agregarMaterial = () => {
+  const agregarMaterial = (materialBase = null) => {
+    const nuevo = materialBase
+      ? {
+          nombre: materialBase.nombre,
+          descripcion: materialBase.descripcion || '',
+          cantidad: materialBase.cantidad || 1,
+          precioPorUnidad: materialBase.precio || 0,
+          total: (materialBase.cantidad || 1) * (materialBase.precio || 0),
+          unidad: materialBase.unidad || 'pieza',
+          materialCatalogoId: materialBase.materialCatalogoId || null,
+        }
+      : {
+          nombre: '',
+          descripcion: '',
+          cantidad: 1,
+          precioPorUnidad: 0,
+          total: 0,
+          unidad: 'pieza',
+          materialCatalogoId: null,
+        };
     setCotizacion(prev => ({
       ...prev,
-      materiales: [...prev.materiales, {
-        nombre: '',
-        descripcion: '',
-        cantidad: 1,
-        precioPorUnidad: 0,
-        total: 0
-      }]
+      materiales: [...prev.materiales, nuevo],
     }));
   };
 
@@ -232,62 +246,67 @@ export default function CrearCotizacion({ cita, onSave, onCancel, isLoading = fa
 
         {/* Materiales */}
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <label className="block text-sm font-medium text-gray-700">
-              Materiales necesarios
-            </label>
-            <button
-              type="button"
-              onClick={agregarMaterial}
-              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-md text-sm flex items-center gap-1 transition-colors"
-            >
-              <FaPlus size={12} />
-              Agregar
-            </button>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Materiales necesarios
+          </label>
+
+          {/* Catalog search */}
+          <div className="mb-3">
+            <BuscadorMateriales
+              onMaterialAgregado={agregarMaterial}
+              placeholder="Buscar en catálogo de ferretería..."
+            />
           </div>
 
           {cotizacion.materiales.length > 0 ? (
-            <div className="space-y-4 bg-gray-50 p-4 rounded-md">
-              <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-600 mb-2">
+            <div className="space-y-3 bg-gray-50 p-4 rounded-md">
+              <div className="hidden md:grid md:grid-cols-12 gap-2 text-xs font-medium text-gray-500 mb-1">
                 <div className="col-span-4">Material</div>
                 <div className="col-span-3">Descripción</div>
                 <div className="col-span-1 text-center">Cant.</div>
-                <div className="col-span-2 text-center">Precio/Unidad</div>
+                <div className="col-span-2 text-center">Precio/u</div>
                 <div className="col-span-1 text-center">Total</div>
                 <div className="col-span-1"></div>
               </div>
               {cotizacion.materiales.map((material, index) => (
                 <div key={index} className="grid grid-cols-12 gap-2 items-start">
-                  <div className="col-span-4">
-                    <input
-                      type="text"
-                      placeholder="Nombre del material"
-                      value={material.nombre || ''}
-                      onChange={(e) => actualizarMaterial(index, 'nombre', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                  <div className="col-span-12 md:col-span-4">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Nombre del material"
+                        value={material.nombre || ''}
+                        onChange={(e) => actualizarMaterial(index, 'nombre', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 pr-7"
+                      />
+                      {material.materialCatalogoId && (
+                        <span title="Del catálogo" className="absolute right-2 top-2.5 text-green-600">
+                          <FaBoxOpen size={12} />
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="col-span-3">
+                  <div className="col-span-12 md:col-span-3">
                     <input
                       type="text"
-                      placeholder="Descripción/Especificaciones"
+                      placeholder="Descripción"
                       value={material.descripcion || ''}
                       onChange={(e) => actualizarMaterial(index, 'descripcion', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  <div className="col-span-1">
+                  <div className="col-span-4 md:col-span-1">
                     <input
                       type="number"
                       placeholder="1"
                       value={material.cantidad || ''}
                       onChange={(e) => actualizarMaterial(index, 'cantidad', e.target.value)}
                       className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      min="1"
-                      step="1"
+                      min="0.01"
+                      step="0.01"
                     />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-4 md:col-span-2">
                     <div className="relative">
                       <span className="absolute left-2 top-2 text-gray-500 text-sm">$</span>
                       <input
@@ -301,8 +320,8 @@ export default function CrearCotizacion({ cita, onSave, onCancel, isLoading = fa
                       />
                     </div>
                   </div>
-                  <div className="col-span-1">
-                    <div className="px-3 py-2 bg-gray-200 border rounded-md text-sm text-center font-medium">
+                  <div className="col-span-3 md:col-span-1">
+                    <div className="px-2 py-2 bg-gray-200 border rounded-md text-sm text-center font-medium">
                       ${(material.total || 0).toLocaleString()}
                     </div>
                   </div>
@@ -321,7 +340,7 @@ export default function CrearCotizacion({ cita, onSave, onCancel, isLoading = fa
             </div>
           ) : (
             <p className="text-gray-500 text-sm bg-gray-50 p-4 rounded-md text-center">
-              No se requieren materiales adicionales
+              Busca un material en el catálogo o agrégalo manualmente
             </p>
           )}
         </div>

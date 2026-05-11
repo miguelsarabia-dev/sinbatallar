@@ -24,6 +24,7 @@ import ImageViewer from '../../extra/ImageViewer';
 import ImageUploader from '../../extra/ImageUploader';
 import { useModal } from '../../../hooks/useModal';
 import Modal from '../../ui/Modal';
+import BuscadorMateriales from '../../ui/BuscadorMateriales';
 
 /**
  * Componente unificado para gestión de citas
@@ -236,10 +237,20 @@ export default function GestionCitas({
   };
 
   // Funciones de materiales
-  const agregarMaterial = () => {
+  const agregarMaterial = (materialBase = null) => {
+    const nuevo = materialBase
+      ? {
+          nombre: materialBase.nombre,
+          descripcion: materialBase.descripcion || '',
+          cantidad: materialBase.cantidad || 1,
+          precio: materialBase.precio || 0,
+          total: (materialBase.cantidad || 1) * (materialBase.precio || 0),
+          materialCatalogoId: materialBase.materialCatalogoId || null,
+        }
+      : { nombre: '', cantidad: 1, precio: 0, materialCatalogoId: null };
     setFormCotizacion(prev => ({
       ...prev,
-      materiales: [...prev.materiales, { nombre: '', cantidad: 1, precio: 0 }]
+      materiales: [...prev.materiales, nuevo],
     }));
   };
 
@@ -831,36 +842,39 @@ export default function GestionCitas({
 
               {/* Materiales */}
               <div>
-                <div className="flex justify-between items-center mb-3">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Materiales
-                  </label>
-                  <button
-                    type="button"
-                    onClick={agregarMaterial}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                  >
-                    <FaPlus size={12} />
-                    Agregar Material
-                  </button>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Materiales
+                </label>
+
+                <div className="mb-3">
+                  <BuscadorMateriales
+                    onMaterialAgregado={agregarMaterial}
+                    placeholder="Buscar en catálogo de ferretería..."
+                  />
                 </div>
 
                 {formCotizacion.materiales.map((material, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 mb-2">
-                    <input
-                      type="text"
-                      placeholder="Nombre"
-                      value={material.nombre}
-                      onChange={(e) => actualizarMaterial(index, 'nombre', e.target.value)}
-                      className="col-span-5 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    />
+                  <div key={index} className="grid grid-cols-12 gap-2 mb-2 items-center">
+                    <div className="col-span-5 relative">
+                      <input
+                        type="text"
+                        placeholder="Nombre"
+                        value={material.nombre}
+                        onChange={(e) => actualizarMaterial(index, 'nombre', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm pr-7"
+                      />
+                      {material.materialCatalogoId && (
+                        <span title="Del catálogo" className="absolute right-2 top-2.5 text-green-600 text-xs">✓</span>
+                      )}
+                    </div>
                     <input
                       type="number"
                       placeholder="Cant."
                       value={material.cantidad}
                       onChange={(e) => actualizarMaterial(index, 'cantidad', e.target.value)}
                       className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                      min="1"
+                      min="0.01"
+                      step="0.01"
                     />
                     <input
                       type="number"

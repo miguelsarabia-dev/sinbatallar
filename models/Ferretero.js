@@ -11,7 +11,8 @@ const ferreteroSchema = new mongoose.Schema({
   nombreNegocio: { type: String, required: true, trim: true },
   telefono: { type: String, trim: true },
   activo: { type: Boolean, default: true },
-  catalogoActivo: { type: Boolean, default: true }
+  catalogoActivo: { type: Boolean, default: true },
+  pendienteAprobacion: { type: Boolean, default: false }
 }, {
   timestamps: true
 });

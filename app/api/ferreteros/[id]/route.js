@@ -36,7 +36,7 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Ferretero no encontrado' }, { status: 404 });
     }
 
-    const camposPermitidos = ['nombreNegocio', 'telefono', 'activo', 'catalogoActivo'];
+    const camposPermitidos = ['nombreNegocio', 'telefono', 'activo', 'catalogoActivo', 'pendienteAprobacion'];
     camposPermitidos.forEach(campo => {
       if (body[campo] !== undefined) ferretero[campo] = body[campo];
     });
