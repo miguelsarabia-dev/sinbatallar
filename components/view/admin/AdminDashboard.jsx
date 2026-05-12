@@ -48,6 +48,7 @@ export default function AdminDashboard() {
   const [areas, setAreas] = useState([]);
   const [aperturadores, setAperturadores] = useState([]);
   const [incorporadores, setIncorporadores] = useState([]);
+  const [ferreteros, setFerreteros] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showCreateServiceForm, setShowCreateServiceForm] = useState(false);
@@ -102,6 +103,7 @@ export default function AdminDashboard() {
       if (data.areas) setAreas(data.areas);
       if (data.aperturadores) setAperturadores(data.aperturadores);
       if (data.incorporadores) setIncorporadores(data.incorporadores);
+      if (data.ferreteros) setFerreteros(data.ferreteros);
 
       if (data.meta) {
         console.log(`Datos cargados en ${data.meta.loadTime}ms (Server-side processing)`);
@@ -1579,7 +1581,8 @@ export default function AdminDashboard() {
       key: 'ferreteros',
       label: 'Ferreterías',
       icon: <FaStore />,
-      count: null
+      count: ferreteros.length,
+      badge: ferreteros.filter(f => f.pendienteAprobacion).length || null
     }
   ];
 
@@ -2658,14 +2661,21 @@ export default function AdminDashboard() {
                       {item.icon}
                       <span className="font-medium">{item.label}</span>
                     </div>
-                    {item.count !== null && (
-                      <span className={`px-2 py-1 text-xs rounded-full ${activeTab === item.key
-                        ? 'bg-white/20 text-white'
-                        : 'bg-gray-200 text-gray-600'
-                        }`}>
-                        {item.count}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {item.badge ? (
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-amber-500 text-white font-semibold">
+                          {item.badge}
+                        </span>
+                      ) : null}
+                      {item.count !== null && (
+                        <span className={`px-2 py-1 text-xs rounded-full ${activeTab === item.key
+                          ? 'bg-white/20 text-white'
+                          : 'bg-gray-200 text-gray-600'
+                          }`}>
+                          {item.count}
+                        </span>
+                      )}
+                    </div>
                   </button>
                 </li>
               ))}
