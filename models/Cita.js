@@ -53,6 +53,9 @@ const citaSchema = new mongoose.Schema({
   cotizaciones: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Cotizacion' }],
   cotizacionAceptada: { type: mongoose.Schema.Types.ObjectId, ref: 'Cotizacion' },
 
+  // Técnico asignado por el contratista
+  tecnico: { type: mongoose.Schema.Types.ObjectId, ref: 'Tecnico', default: null },
+
   // Flags de calificación
   calificadoContratista: { type: Boolean, default: false },
 
