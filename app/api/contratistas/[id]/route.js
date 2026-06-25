@@ -1,4 +1,5 @@
 import { connectDB } from '@/lib/mongoose'
+import Area from '@/models/Area'
 import Contratista from '@/models/Contratista'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
@@ -34,22 +35,37 @@ export async function PUT(request, { params }) {
       data.password = await bcrypt.hash(data.password, 12);
     }
 
+    // Manejar cambio de área: actualizar el array contratistas en Area
+    const contratistaActual = await Contratista.findById(id);
+    if (!contratistaActual) {
+      return NextResponse.json({ error: 'Contratista no encontrado' }, { status: 404 });
+    }
+
+    if (data.areaId !== undefined) {
+      const areaAnteriorId = contratistaActual.areaId?.toString();
+      const areaNuevaId = data.areaId?.toString();
+
+      // Quitar de área anterior si cambió
+      if (areaAnteriorId && areaAnteriorId !== areaNuevaId) {
+        await Area.findByIdAndUpdate(areaAnteriorId, {
+          $pull: { contratistas: id }
+        });
+      }
+
+      // Agregar a nueva área si hay una y es distinta
+      if (areaNuevaId && areaNuevaId !== areaAnteriorId) {
+        await Area.findByIdAndUpdate(areaNuevaId, {
+          $addToSet: { contratistas: id }
+        });
+      }
+    }
+
     // Actualizar el contratista
     const contratista = await Contratista.findByIdAndUpdate(
       id,
       data,
       { new: true, runValidators: true, upsert: false }
     );
-
-    if (!contratista) {
-      return NextResponse.json({ error: 'Contratista no encontrado' }, { status: 404 });
-    }
-
-    // Si el campo activo no está definido, establecerlo por defecto
-    if (contratista.activo === undefined) {
-      contratista.activo = true;
-      await contratista.save();
-    }
 
     return NextResponse.json(contratista);
 
