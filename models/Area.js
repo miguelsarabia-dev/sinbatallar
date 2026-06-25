@@ -11,6 +11,22 @@ const areaSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  municipio: {
+    type: String,
+    trim: true,
+  },
+  estado: {
+    type: String,
+    trim: true,
+  },
+  tipo: {
+    type: String,
+    trim: true,
+  },
+  codigoPostal: {
+    type: String,
+    trim: true,
+  },
   aperturador: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Aperturador',

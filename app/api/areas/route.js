@@ -28,7 +28,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { nombre, descripcion, clasificacion, poligono, contratistas = [], aperturadorId, estadisticas } = body;
+    const { nombre, descripcion, municipio, estado, tipo, codigoPostal, clasificacion, poligono, contratistas = [], aperturadorId, estadisticas } = body;
 
     // Validaciones
     if (!nombre?.trim()) {
@@ -84,6 +84,10 @@ export async function POST(request) {
     const nuevaArea = new Area({
       nombre: nombre.trim(),
       descripcion: descripcion?.trim() || '',
+      municipio: municipio?.trim() || '',
+      estado: estado?.trim() || '',
+      tipo: tipo?.trim() || '',
+      codigoPostal: codigoPostal?.trim() || '',
       clasificacion,
       poligono,
       contratistas: contratistas || [],
@@ -131,7 +135,7 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { _id, nombre, descripcion, clasificacion, poligono, contratistas = [] } = body;
+    const { _id, nombre, descripcion, municipio, estado, tipo, codigoPostal, clasificacion, poligono, contratistas = [] } = body;
 
     if (!_id) {
       return NextResponse.json(
@@ -182,6 +186,10 @@ export async function PUT(request) {
     // Actualizar campos
     if (nombre) area.nombre = nombre.trim();
     if (descripcion !== undefined) area.descripcion = descripcion.trim();
+    if (municipio !== undefined) area.municipio = municipio.trim();
+    if (estado !== undefined) area.estado = estado.trim();
+    if (tipo !== undefined) area.tipo = tipo.trim();
+    if (codigoPostal !== undefined) area.codigoPostal = codigoPostal.trim();
     if (clasificacion) area.clasificacion = clasificacion;
     if (poligono) area.poligono = poligono;
     if (Array.isArray(contratistas)) area.contratistas = contratistas;
