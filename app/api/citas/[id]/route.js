@@ -70,12 +70,17 @@ export async function PATCH(request, { params }) {
 
     // Validar transiciones de estado permitidas
     const transicionesPermitidas = {
-      'solicitada': ['cotizada', 'cancelada'],
-      'cotizada': ['aceptada', 'cancelada'],
-      'aceptada': ['en_progreso', 'cancelada'],
-      'en_progreso': ['completada'],
-      'completada': [], // Estado final
-      'cancelada': []   // Estado final
+      'solicitada':        ['aceptada', 'rechazada', 'cancelada'],
+      'pendiente':         ['aceptada', 'rechazada', 'cancelada'],
+      'aceptada':          ['en_revision', 'en_progreso', 'cancelada'],
+      'en_revision':       ['cotizada', 'en_progreso', 'cancelada'],
+      'cotizada':          ['verificando_pago', 'en_progreso', 'cancelada'],
+      'verificando_pago':  ['en_progreso', 'cancelada'],
+      'atendida':          ['cotizada', 'cancelada'],
+      'en_progreso':       ['completada', 'cancelada'],
+      'completada':        [],
+      'cancelada':         [],
+      'rechazada':         []
     };
 
     const estadosPermitidos = transicionesPermitidas[cita.estado] || [];
