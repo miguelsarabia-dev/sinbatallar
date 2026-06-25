@@ -18,7 +18,13 @@ const contratistaSchema = new mongoose.Schema({
     lng: { type: Number },
     direccion: { type: String, trim: true }
   },
+  areaId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Area',
+    default: null
+  },
   activo: { type: Boolean, default: false },
+  inactivoDesde: { type: Date, default: null },
   informacionPago: {
     banco: { type: String, trim: true },
     numeroCuenta: { type: String, trim: true },

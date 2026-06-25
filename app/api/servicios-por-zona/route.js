@@ -17,8 +17,9 @@ export async function GET(request) {
   }
 
   try {
-    // Buscar el área que contiene la ubicación del usuario
+    // Buscar el área activa que contiene la ubicación del usuario
     const area = await Area.findOne({
+      activo: true,
       poligono: {
         $geoIntersects: {
           $geometry: {
@@ -29,6 +30,7 @@ export async function GET(request) {
       }
     }).populate({
       path: 'contratistas',
+      match: { activo: true }, // Solo contratistas activos
       populate: {
         path: 'servicios',
         model: 'Servicio'
@@ -40,6 +42,16 @@ export async function GET(request) {
         message: 'No hay servicios disponibles en tu zona actualmente',
         servicios: [],
         area: null,
+        ubicacion: { lat, lng }
+      });
+    }
+
+    if (!area.contratistas || area.contratistas.length === 0) {
+      return NextResponse.json({
+        message: 'No hay contratistas activos en tu zona actualmente',
+        servicios: [],
+        categorias: [],
+        area: { _id: area._id, nombre: area.nombre, clasificacion: area.clasificacion },
         ubicacion: { lat, lng }
       });
     }
