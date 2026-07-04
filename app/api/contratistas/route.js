@@ -5,24 +5,6 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 import { enviarEmailBienvenidaContratista } from '@/lib/email-service'
 
-// Funciones de validación sin YUP
-function validateContratistaCreate(data) {
-  const errors = [];
-
-  if (!data.nombre) errors.push('Nombre requerido');
-  if (!data.direccion) errors.push('Dirección requerida');
-  if (!data.telefono) errors.push('Teléfono requerido');
-  if (!data.email) errors.push('Email requerido');
-  if (!data.password || data.password.length < 6) {
-    errors.push('La contraseña debe tener al menos 6 caracteres');
-  }
-  if (!data.ubicacion?.lat || !data.ubicacion?.lng) {
-    errors.push('Ubicación requerida');
-  }
-
-  return errors;
-}
-
 // GET: Listar todos los contratistas o uno por ID
 export async function GET(request) {
   await connectDB();
@@ -60,55 +42,71 @@ export async function GET(request) {
   }
 }
 
-// POST: Crear un nuevo contratista
+// POST /api/contratistas — el incorporador registra un contratista
+// Body JSON: { nombre, email, telefono, curp, incorporadorId, especialidad?, direccion?, notas? }
 export async function POST(req) {
   await connectDB();
-  const data = await req.json();
 
-  // Agregar la dirección a la ubicación si no está presente
-  if (data.ubicacion && !data.ubicacion.direccion) {
-    data.ubicacion.direccion = data.direccion;
+  const { nombre, email, telefono, curp, especialidad, direccion, notas, incorporadorId } = await req.json();
+
+  if (!nombre || !email || !telefono || !curp || !incorporadorId) {
+    return NextResponse.json(
+      { error: 'Campos requeridos: nombre, email, telefono, curp, incorporadorId' },
+      { status: 400 }
+    );
   }
 
-  // Validar
-  const errors = validateContratistaCreate(data);
-  if (errors.length > 0) {
-    return NextResponse.json({ error: 'Datos inválidos', details: errors }, { status: 400 });
+  if (curp.trim().length !== 18) {
+    return NextResponse.json({ error: 'El CURP debe tener 18 caracteres' }, { status: 400 });
   }
 
-  // Hashear la contraseña antes de guardar
-  if (data.password) {
-    data.password = await bcrypt.hash(data.password, 12);
+  const incorporador = await Incorporador.findById(incorporadorId);
+  if (!incorporador) {
+    return NextResponse.json({ error: 'Incorporador no encontrado' }, { status: 404 });
   }
 
+<<<<<<< Updated upstream
   const nuevoContratista = new Contratista(data);
   await nuevoContratista.save();
-
-  // Enviar email de bienvenida al contratista
-  enviarEmailBienvenidaContratista({
-    email: data.email,
-    nombre: data.nombre
-  }).catch(err => console.error('Error enviando email de bienvenida contratista:', err));
-
-  // Si tiene incorporador, actualizar las estadísticas
-  if (data.incorporador) {
-    try {
-      const incorporador = await Incorporador.findById(data.incorporador);
-      if (incorporador) {
-        incorporador.contratistasIncorporados.push(nuevoContratista._id);
-        incorporador.estadisticas.totalContratistasIncorporados = incorporador.contratistasIncorporados.length;
-        incorporador.estadisticas.contratistasActivos = await Contratista.countDocuments({
-          incorporador: data.incorporador,
-          activo: true
-        });
-        await incorporador.save();
-      }
-    } catch (error) {
-      console.error('Error actualizando estadísticas del incorporador:', error);
-    }
+=======
+  const existe = await Contratista.findOne({ email: email.toLowerCase().trim() });
+  if (existe) {
+    return NextResponse.json({ error: 'Ya existe un contratista registrado con ese email' }, { status: 409 });
   }
 
-  return NextResponse.json({ message: 'Solicitud registrada exitosamente, Sin Batallar te contactará', contratista: nuevoContratista });
+  // Password temporal generado del CURP — el contratista lo cambia en su primer login
+  const passwordTemporal = await bcrypt.hash(curp.trim().toUpperCase(), 12);
+>>>>>>> Stashed changes
+
+  const nuevoContratista = await Contratista.create({
+    nombre: nombre.trim(),
+    email: email.toLowerCase().trim(),
+    telefono: telefono.trim(),
+    curp: curp.trim().toUpperCase(),
+    especialidad: especialidad?.trim() || '',
+    direccion: direccion?.trim() || '',
+    notas: notas?.trim() || '',
+    password: passwordTemporal,
+    incorporador: incorporador._id,
+    activo: true,
+    estatus: 'pendiente'
+  });
+
+  enviarEmailBienvenidaContratista({ email: nuevoContratista.email, nombre: nuevoContratista.nombre })
+    .catch(err => console.error('Error enviando email bienvenida contratista:', err));
+
+  incorporador.contratistasIncorporados.push(nuevoContratista._id);
+  incorporador.estadisticas.totalContratistasIncorporados = incorporador.contratistasIncorporados.length;
+  incorporador.estadisticas.contratistasActivos = await Contratista.countDocuments({
+    incorporador: incorporador._id,
+    activo: true
+  });
+  await incorporador.save();
+
+  return NextResponse.json(
+    { message: 'Contratista registrado exitosamente', contratista: nuevoContratista },
+    { status: 201 }
+  );
 }
 
 // PUT: Actualizar un contratista existente
