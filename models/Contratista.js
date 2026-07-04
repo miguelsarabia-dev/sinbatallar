@@ -19,6 +19,11 @@ const contratistaSchema = new mongoose.Schema({
     direccion: { type: String, trim: true }
   },
   activo: { type: Boolean, default: false },
+  estatus: {
+    type: String,
+    enum: ['pendiente', 'activo', 'rechazado', 'suspendido'],
+    default: 'pendiente'
+  },
   informacionPago: {
     banco: { type: String, trim: true },
     numeroCuenta: { type: String, trim: true },
@@ -33,6 +38,7 @@ const contratistaSchema = new mongoose.Schema({
 
 // Índices (email ya tiene índice por unique: true)
 contratistaSchema.index({ activo: 1 });
+contratistaSchema.index({ estatus: 1 });
 contratistaSchema.index({ incorporador: 1 });
 
 export default mongoose.models.Contratista || mongoose.model('Contratista', contratistaSchema);

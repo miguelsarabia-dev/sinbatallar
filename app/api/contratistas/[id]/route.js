@@ -45,12 +45,6 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Contratista no encontrado' }, { status: 404 });
     }
 
-    // Si el campo activo no está definido, establecerlo por defecto
-    if (contratista.activo === undefined) {
-      contratista.activo = true;
-      await contratista.save();
-    }
-
     return NextResponse.json(contratista);
 
   } catch (error) {

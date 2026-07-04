@@ -24,12 +24,14 @@ function validateContratistaCreate(data) {
 }
 
 // GET: Listar todos los contratistas o uno por ID
+// Query: ?id=  ?incorporadorId=  ?sinIncorporador=true  ?estatus=pendiente|activo|rechazado|suspendido
 export async function GET(request) {
   await connectDB();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
   const incorporadorId = searchParams.get('incorporadorId');
   const sinIncorporador = searchParams.get('sinIncorporador');
+  const estatus = searchParams.get('estatus');
 
   if (id) {
     const contratista = await Contratista.findById(id)
@@ -37,27 +39,27 @@ export async function GET(request) {
       .populate('incorporador');
     if (!contratista) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
     return NextResponse.json(contratista);
-  } else if (incorporadorId) {
-    const contratistas = await Contratista.find({ incorporador: incorporadorId })
-      .populate('servicios', 'nombre descripcion categoria')
-      .populate('incorporador');
-    return NextResponse.json(contratistas);
-  } else if (sinIncorporador === 'true') {
-    const contratistas = await Contratista.find({
-      $or: [
-        { incorporador: null },
-        { incorporador: { $exists: false } }
-      ]
-    })
-      .populate('servicios', 'nombre descripcion categoria')
-      .sort({ createdAt: -1 });
-    return NextResponse.json(contratistas);
-  } else {
-    const contratistas = await Contratista.find({})
-      .populate('servicios', 'nombre descripcion categoria')
-      .populate('incorporador');
-    return NextResponse.json(contratistas);
   }
+
+  const filtro = {};
+
+  if (incorporadorId) {
+    filtro.incorporador = incorporadorId;
+  } else if (sinIncorporador === 'true') {
+    filtro.$or = [
+      { incorporador: null },
+      { incorporador: { $exists: false } }
+    ];
+  }
+
+  if (estatus) filtro.estatus = estatus;
+
+  const contratistas = await Contratista.find(filtro)
+    .populate('servicios', 'nombre descripcion categoria')
+    .populate('incorporador')
+    .sort({ createdAt: -1 });
+
+  return NextResponse.json(contratistas);
 }
 
 // POST: Crear un nuevo contratista
@@ -79,6 +81,15 @@ export async function POST(req) {
   // Hashear la contraseña antes de guardar
   if (data.password) {
     data.password = await bcrypt.hash(data.password, 12);
+  }
+
+  // Si el incorporador registra directamente, el contratista queda activo de entrada
+  if (data.incorporador) {
+    data.activo = true;
+    data.estatus = 'activo';
+  } else {
+    data.activo = false;
+    data.estatus = 'pendiente';
   }
 
   const nuevoContratista = new Contratista(data);
