@@ -17,7 +17,7 @@ function addCorsHeaders(request, response) {
 }
 
 // Rutas protegidas y públicas
-const protectedRoutes = ['/main', '/admin', '/contratista', '/aperturador', '/incorporador', '/ferretero'];
+const protectedRoutes = ['/main', '/admin', '/contratista', '/aperturador', '/incorporador', '/ferretero', '/tecnico'];
 const publicRoutes = ['/', '/login', '/register', '/politicas-de-privacidad', '/api/auth/login', '/api/auth/register'];
 
 async function verifyTokenMiddleware(token) {
@@ -121,6 +121,10 @@ export async function middleware(request) {
     return NextResponse.redirect(new URL('/ferretero', request.url));
   }
 
+  if (userRole === 'tecnico' && !pathname.startsWith('/tecnico')) {
+    return NextResponse.redirect(new URL('/tecnico', request.url));
+  }
+
   if (userRole === 'contratista' && !pathname.startsWith('/contratista')) {
     return NextResponse.redirect(new URL('/contratista/dashboard', request.url));
   }
@@ -145,6 +149,7 @@ function redirectByRole(role, request) {
     'aperturador': '/aperturador',
     'incorporador': '/incorporador',
     'ferretero': '/ferretero',
+    'tecnico': '/tecnico',
     'cliente': '/main/servicios-programables',
     'user': '/main/servicios-programables'
   };
@@ -161,6 +166,7 @@ export const config = {
     '/contratista/:path*',
     '/aperturador/:path*',
     '/incorporador/:path*',
-    '/ferretero/:path*'
+    '/ferretero/:path*',
+    '/tecnico/:path*'
   ]
 };

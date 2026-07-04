@@ -48,8 +48,10 @@ export default function AdminDashboard() {
   const [areas, setAreas] = useState([]);
   const [aperturadores, setAperturadores] = useState([]);
   const [incorporadores, setIncorporadores] = useState([]);
+  const [ferreteros, setFerreteros] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showCreateServiceForm, setShowCreateServiceForm] = useState(false);
   const [showEditServiceForm, setShowEditServiceForm] = useState(false);
   const [showDelimitadorAreas, setShowDelimitadorAreas] = useState(false);
@@ -102,6 +104,7 @@ export default function AdminDashboard() {
       if (data.areas) setAreas(data.areas);
       if (data.aperturadores) setAperturadores(data.aperturadores);
       if (data.incorporadores) setIncorporadores(data.incorporadores);
+      if (data.ferreteros) setFerreteros(data.ferreteros);
 
       if (data.meta) {
         console.log(`Datos cargados en ${data.meta.loadTime}ms (Server-side processing)`);
@@ -1599,7 +1602,7 @@ export default function AdminDashboard() {
             <h2 className="text-2xl font-bold text-gray-900">Panel General</h2>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
                 <div className="flex items-center">
                   <div className="p-2 bg-blue-100 rounded-lg">
@@ -1656,6 +1659,31 @@ export default function AdminDashboard() {
                   <div className="ml-3">
                     <p className="text-xs font-medium text-gray-600">Citas</p>
                     <p className="text-xl font-bold text-gray-900">{stats.totalCitas}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className="bg-white p-4 rounded-lg shadow border border-gray-200 cursor-pointer hover:border-primary/40 transition-colors"
+                onClick={() => setActiveTab('ferreteros')}
+              >
+                <div className="flex items-center">
+                  <div className="p-2 bg-orange-100 rounded-lg relative">
+                    <FaStore className="text-orange-600 text-lg" />
+                    {ferreteros.filter(f => f.pendienteAprobacion).length > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full text-white text-[10px] font-bold flex items-center justify-center">
+                        {ferreteros.filter(f => f.pendienteAprobacion).length}
+                      </span>
+                    )}
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-xs font-medium text-gray-600">Ferreterías</p>
+                    <p className="text-xl font-bold text-gray-900">{ferreteros.length}</p>
+                    {ferreteros.filter(f => f.pendienteAprobacion).length > 0 && (
+                      <p className="text-xs text-amber-600 font-medium">
+                        {ferreteros.filter(f => f.pendienteAprobacion).length} pendiente{ferreteros.filter(f => f.pendienteAprobacion).length > 1 ? 's' : ''}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2624,14 +2652,38 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-gray-50">
       <div className="flex">
         {/* Sidebar */}
-        <div className={`${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform lg:translate-x-0 lg:static lg:inset-0 transition-transform duration-300 ease-in-out border-r border-gray-200 lg:z-auto`}>
-          <div className="flex items-center justify-between h-16 px-4 sm:px-6 border-b border-gray-200">
-            <div className="flex items-center space-x-2 sm:space-x-3">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary rounded-lg flex items-center justify-center">
-                <FaShieldAlt className="text-white text-sm sm:text-lg" />
+        <div className={`
+          ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+          ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'}
+          fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg
+          transform lg:translate-x-0 lg:static lg:inset-0
+          transition-all duration-300 ease-in-out
+          border-r border-gray-200 lg:z-auto flex flex-col
+        `}>
+          {/* Header */}
+          <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 flex-shrink-0">
+            {!sidebarCollapsed && (
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                  <FaShieldAlt className="text-white text-sm" />
+                </div>
+                <h1 className="text-lg font-bold text-gray-900 whitespace-nowrap">Admin Panel</h1>
               </div>
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900">Admin Panel</h1>
-            </div>
+            )}
+            {sidebarCollapsed && (
+              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center mx-auto">
+                <FaShieldAlt className="text-white text-sm" />
+              </div>
+            )}
+            {/* Collapse toggle — desktop only */}
+            <button
+              onClick={() => setSidebarCollapsed(v => !v)}
+              className="hidden lg:flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0"
+              title={sidebarCollapsed ? 'Expandir menú' : 'Colapsar menú'}
+            >
+              {sidebarCollapsed ? <FaChevronRight size={12} /> : <FaChevronLeft size={12} />}
+            </button>
+            {/* Close — mobile only */}
             <button
               onClick={() => setMobileMenuOpen(false)}
               className="lg:hidden text-gray-500 hover:text-gray-700 p-2 rounded-md hover:bg-gray-100"
@@ -2640,31 +2692,53 @@ export default function AdminDashboard() {
             </button>
           </div>
 
-          <nav className="mt-6 px-4 pb-20">
-            <ul className="space-y-2">
+          {/* Nav */}
+          <nav className="flex-1 overflow-y-auto mt-4 px-2 pb-4">
+            <ul className="space-y-1">
               {menuItems.map((item) => (
                 <li key={item.key}>
                   <button
-                    onClick={() => {
-                      setActiveTab(item.key);
-                      setMobileMenuOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-4 py-3 text-left rounded-lg transition-colors ${activeTab === item.key
-                      ? 'bg-primary text-white'
-                      : 'text-gray-700 hover:bg-gray-100:bg-gray-700'
-                      }`}
+                    onClick={() => { setActiveTab(item.key); setMobileMenuOpen(false); }}
+                    title={sidebarCollapsed ? item.label : undefined}
+                    className={`w-full flex items-center px-3 py-2.5 text-left rounded-lg transition-colors relative
+                      ${sidebarCollapsed ? 'justify-center' : 'justify-between'}
+                      ${activeTab === item.key ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'}
+                    `}
                   >
-                    <div className="flex items-center space-x-3">
-                      {item.icon}
-                      <span className="font-medium">{item.label}</span>
-                    </div>
-                    {item.count !== null && (
-                      <span className={`px-2 py-1 text-xs rounded-full ${activeTab === item.key
-                        ? 'bg-white/20 text-white'
-                        : 'bg-gray-200 text-gray-600'
-                        }`}>
-                        {item.count}
+                    <div className={`flex items-center ${sidebarCollapsed ? '' : 'space-x-3'} relative`}>
+                      {/* Icon with badge dot when collapsed */}
+                      <span className="relative flex-shrink-0">
+                        {item.icon}
+                        {sidebarCollapsed && item.badge ? (
+                          <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-amber-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center">
+                            {item.badge}
+                          </span>
+                        ) : null}
+                        {sidebarCollapsed && !item.badge && item.count !== null && item.count > 0 ? (
+                          <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-gray-400 rounded-full text-white text-[9px] font-bold flex items-center justify-center">
+                            {item.count > 99 ? '99+' : item.count}
+                          </span>
+                        ) : null}
                       </span>
+                      {!sidebarCollapsed && (
+                        <span className="font-medium text-sm whitespace-nowrap">{item.label}</span>
+                      )}
+                    </div>
+
+                    {/* Counts — only when expanded */}
+                    {!sidebarCollapsed && (
+                      <div className="flex items-center gap-1.5">
+                        {item.badge ? (
+                          <span className="px-1.5 py-0.5 text-xs rounded-full bg-amber-500 text-white font-semibold">
+                            {item.badge}
+                          </span>
+                        ) : null}
+                        {item.count !== null && (
+                          <span className={`px-2 py-0.5 text-xs rounded-full ${activeTab === item.key ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                            {item.count}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </button>
                 </li>
@@ -2672,19 +2746,21 @@ export default function AdminDashboard() {
             </ul>
           </nav>
 
-          <div className="absolute bottom-4 left-4 right-4">
+          {/* Logout */}
+          <div className="flex-shrink-0 px-2 pb-4 border-t border-gray-100 pt-3">
             <button
               onClick={handleLogout}
-              className="w-full flex items-center space-x-3 px-4 py-3 text-red-600 hover:bg-red-50:bg-red-900/20 rounded-lg transition-colors"
+              title={sidebarCollapsed ? 'Cerrar Sesión' : undefined}
+              className={`w-full flex items-center px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors ${sidebarCollapsed ? 'justify-center' : 'space-x-3'}`}
             >
-              <FaSignOutAlt />
-              <span className="font-medium">Cerrar Sesión</span>
+              <FaSignOutAlt className="flex-shrink-0" />
+              {!sidebarCollapsed && <span className="font-medium text-sm">Cerrar Sesión</span>}
             </button>
           </div>
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 min-h-screen">
+        <div className="flex-1 min-h-screen overflow-hidden">
           {/* Top Bar */}
           <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
             <div className="px-4 sm:px-6 py-4">

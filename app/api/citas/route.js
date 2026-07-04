@@ -16,6 +16,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const clienteId = searchParams.get('clienteId');
     const contratistaId = searchParams.get('contratistaId');
+    const tecnicoId = searchParams.get('tecnicoId');
     const estado = searchParams.get('estado');
     const fecha = searchParams.get('fecha');
     const activa = searchParams.get('activa');
@@ -28,6 +29,10 @@ export async function GET(request) {
 
     if (contratistaId) {
       filter.contratista = contratistaId;
+    }
+
+    if (tecnicoId) {
+      filter.tecnico = tecnicoId;
     }
 
     if (estado) {
@@ -73,6 +78,7 @@ export async function GET(request) {
           select: 'nombre email telefono informacionPago'
         }
       })
+      .populate({ path: 'tecnico', populate: { path: 'user', select: 'nombre email telefono' } })
       .sort({ createdAt: -1, fechaProgramada: 1 });
 
     return NextResponse.json(citas);
