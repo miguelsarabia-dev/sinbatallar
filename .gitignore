@@ -52,4 +52,5 @@ next-env.d.ts
 ./scripts
 
 /antigravity
+/claude
 /CLAUDE.md

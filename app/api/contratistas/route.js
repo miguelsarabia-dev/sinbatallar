@@ -67,9 +67,6 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Incorporador no encontrado' }, { status: 404 });
   }
 
-  const nuevoContratista = new Contratista(data);
-  await nuevoContratista.save();
-
   const existe = await Contratista.findOne({ email: email.toLowerCase().trim() });
   if (existe) {
     return NextResponse.json({ error: 'Ya existe un contratista registrado con ese email' }, { status: 409 });
@@ -77,7 +74,6 @@ export async function POST(req) {
 
   // Password temporal generado del CURP — el contratista lo cambia en su primer login
   const passwordTemporal = await bcrypt.hash(curp.trim().toUpperCase(), 12);
-
 
   const nuevoContratista = await Contratista.create({
     nombre: nombre.trim(),
