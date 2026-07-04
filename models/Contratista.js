@@ -42,6 +42,7 @@ const contratistaSchema = new mongoose.Schema({
 
 // Índices (email ya tiene índice por unique: true)
 contratistaSchema.index({ activo: 1 });
+contratistaSchema.index({ estatus: 1 });
 contratistaSchema.index({ incorporador: 1 });
 
 export default mongoose.models.Contratista || mongoose.model('Contratista', contratistaSchema);

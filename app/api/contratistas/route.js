@@ -6,12 +6,14 @@ import bcrypt from 'bcrypt'
 import { enviarEmailBienvenidaContratista } from '@/lib/email-service'
 
 // GET: Listar todos los contratistas o uno por ID
+// Query: ?id=  ?incorporadorId=  ?sinIncorporador=true  ?estatus=pendiente|activo|rechazado|suspendido
 export async function GET(request) {
   await connectDB();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
   const incorporadorId = searchParams.get('incorporadorId');
   const sinIncorporador = searchParams.get('sinIncorporador');
+  const estatus = searchParams.get('estatus');
 
   if (id) {
     const contratista = await Contratista.findById(id)
@@ -19,27 +21,27 @@ export async function GET(request) {
       .populate('incorporador');
     if (!contratista) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
     return NextResponse.json(contratista);
-  } else if (incorporadorId) {
-    const contratistas = await Contratista.find({ incorporador: incorporadorId })
-      .populate('servicios', 'nombre descripcion categoria')
-      .populate('incorporador');
-    return NextResponse.json(contratistas);
-  } else if (sinIncorporador === 'true') {
-    const contratistas = await Contratista.find({
-      $or: [
-        { incorporador: null },
-        { incorporador: { $exists: false } }
-      ]
-    })
-      .populate('servicios', 'nombre descripcion categoria')
-      .sort({ createdAt: -1 });
-    return NextResponse.json(contratistas);
-  } else {
-    const contratistas = await Contratista.find({})
-      .populate('servicios', 'nombre descripcion categoria')
-      .populate('incorporador');
-    return NextResponse.json(contratistas);
   }
+
+  const filtro = {};
+
+  if (incorporadorId) {
+    filtro.incorporador = incorporadorId;
+  } else if (sinIncorporador === 'true') {
+    filtro.$or = [
+      { incorporador: null },
+      { incorporador: { $exists: false } }
+    ];
+  }
+
+  if (estatus) filtro.estatus = estatus;
+
+  const contratistas = await Contratista.find(filtro)
+    .populate('servicios', 'nombre descripcion categoria')
+    .populate('incorporador')
+    .sort({ createdAt: -1 });
+
+  return NextResponse.json(contratistas);
 }
 
 // POST /api/contratistas — el incorporador registra un contratista
@@ -65,10 +67,9 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Incorporador no encontrado' }, { status: 404 });
   }
 
-<<<<<<< Updated upstream
   const nuevoContratista = new Contratista(data);
   await nuevoContratista.save();
-=======
+
   const existe = await Contratista.findOne({ email: email.toLowerCase().trim() });
   if (existe) {
     return NextResponse.json({ error: 'Ya existe un contratista registrado con ese email' }, { status: 409 });
@@ -76,7 +77,7 @@ export async function POST(req) {
 
   // Password temporal generado del CURP — el contratista lo cambia en su primer login
   const passwordTemporal = await bcrypt.hash(curp.trim().toUpperCase(), 12);
->>>>>>> Stashed changes
+
 
   const nuevoContratista = await Contratista.create({
     nombre: nombre.trim(),

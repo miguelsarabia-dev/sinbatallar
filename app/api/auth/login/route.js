@@ -4,7 +4,6 @@ import { connectDB } from '@/lib/mongoose';
 import User from '@/models/User';
 import Contratista from '@/models/Contratista';
 import Ferretero from '@/models/Ferretero';
-import Tecnico from '@/models/Tecnico';
 import { signToken, comparePassword } from '@/lib/auth';
 
 export async function POST(request) {

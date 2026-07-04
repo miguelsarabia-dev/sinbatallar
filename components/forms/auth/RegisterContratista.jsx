@@ -122,7 +122,7 @@ export default function RegisterContratista() {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/contratistas', {
+      const res = await fetch('/api/contratistas/solicitud', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -133,13 +133,12 @@ export default function RegisterContratista() {
           password,
           servicios: serviciosSeleccionados,
           ubicacion: selectedLocation,
-          activo: false, // Los contratistas necesitan aprobación
         }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        setMessage('Solicitud enviada exitosamente. Esperando aprobación.');
+        setMessage('Solicitud enviada. Un incorporador revisará y activará tu cuenta.');
         setTimeout(() => router.push('/'), 3000);
       } else {
         setError(data.error || 'Error al enviar solicitud');
