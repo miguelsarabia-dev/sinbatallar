@@ -3,9 +3,12 @@ import mongoose from 'mongoose';
 
 const contratistaSchema = new mongoose.Schema({
   nombre: { type: String, required: true, trim: true },
-  direccion: { type: String, required: true, trim: true },
-  telefono: { type: String, required: true, trim: true },
   email: { type: String, required: true, trim: true, lowercase: true, unique: true },
+  telefono: { type: String, required: true, trim: true },
+  curp: { type: String, trim: true, uppercase: true, minlength: 18, maxlength: 18 },
+  especialidad: { type: String, trim: true },
+  direccion: { type: String, trim: true },
+  notas: { type: String, trim: true },
   password: { type: String, required: true },
   servicios: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Servicio' }],
   incorporador: {
@@ -24,11 +27,7 @@ const contratistaSchema = new mongoose.Schema({
     default: null
   },
   activo: { type: Boolean, default: false },
-  estatus: {
-    type: String,
-    enum: ['pendiente', 'activo', 'rechazado', 'suspendido'],
-    default: 'pendiente'
-  },
+  inactivoDesde: { type: Date, default: null },
   informacionPago: {
     banco: { type: String, trim: true },
     numeroCuenta: { type: String, trim: true },
