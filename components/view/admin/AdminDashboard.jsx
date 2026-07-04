@@ -12,8 +12,7 @@ import {
   FaShieldAlt, FaCog, FaUsers, FaClipboardList, FaChartBar,
   FaSignOutAlt, FaPlus, FaEdit, FaTrash, FaEye, FaSync, FaUserPlus,
   FaTimes, FaCar, FaBars, FaWarehouse, FaTools, FaFileAlt, FaBan,
-  FaPlay, FaPause, FaMapMarkedAlt, FaMoneyBillWave, FaCalendarAlt, FaStore,
-  FaChevronLeft, FaChevronRight
+  FaPlay, FaPause, FaMapMarkedAlt, FaMoneyBillWave, FaCalendarAlt, FaStore
 } from 'react-icons/fa';
 import CreateServiceForm from './forms/CreateServiceForm';
 import EditServiceForm from './forms/EditServiceForm';
@@ -1583,8 +1582,7 @@ export default function AdminDashboard() {
       key: 'ferreteros',
       label: 'Ferreterías',
       icon: <FaStore />,
-      count: ferreteros.length,
-      badge: ferreteros.filter(f => f.pendienteAprobacion).length || null
+      count: null
     }
   ];
 

@@ -67,6 +67,10 @@ export async function PUT(request, { params }) {
       { new: true, runValidators: true, upsert: false }
     );
 
+    if (!contratista) {
+      return NextResponse.json({ error: 'Contratista no encontrado' }, { status: 404 });
+    }
+
     return NextResponse.json(contratista);
 
   } catch (error) {
