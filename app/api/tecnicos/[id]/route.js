@@ -61,6 +61,7 @@ export async function PUT(request, { params }) {
 
     // Actualizar campos del perfil Tecnico
     if (body.especialidades !== undefined) tecnico.especialidades = body.especialidades;
+    if (body.areasCobertura !== undefined) tecnico.areasCobertura = body.areasCobertura;
     if (body.activo !== undefined) tecnico.activo = body.activo;
 
     await tecnico.save();

@@ -10,6 +10,19 @@ const ferreteroSchema = new mongoose.Schema({
   },
   nombreNegocio: { type: String, required: true, trim: true },
   telefono: { type: String, trim: true },
+  direccion: { type: String, trim: true },
+  // Ubicación del negocio para buscar materiales por cercanía (GeoJSON Point [lng, lat])
+  ubicacion: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number], // [lng, lat]
+      default: undefined
+    }
+  },
   activo: { type: Boolean, default: true },
   catalogoActivo: { type: Boolean, default: true },
   pendienteAprobacion: { type: Boolean, default: false }
@@ -18,5 +31,6 @@ const ferreteroSchema = new mongoose.Schema({
 });
 
 ferreteroSchema.index({ activo: 1 });
+ferreteroSchema.index({ ubicacion: '2dsphere' });
 
 export default mongoose.models.Ferretero || mongoose.model('Ferretero', ferreteroSchema);

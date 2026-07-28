@@ -36,10 +36,18 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Ferretero no encontrado' }, { status: 404 });
     }
 
-    const camposPermitidos = ['nombreNegocio', 'telefono', 'activo', 'catalogoActivo', 'pendienteAprobacion'];
+    const camposPermitidos = ['nombreNegocio', 'telefono', 'direccion', 'activo', 'catalogoActivo', 'pendienteAprobacion'];
     camposPermitidos.forEach(campo => {
       if (body[campo] !== undefined) ferretero[campo] = body[campo];
     });
+
+    // Actualizar ubicación si viene { lat, lng }
+    if (body.ubicacion?.lat != null && body.ubicacion?.lng != null) {
+      ferretero.ubicacion = {
+        type: 'Point',
+        coordinates: [body.ubicacion.lng, body.ubicacion.lat]
+      };
+    }
 
     await ferretero.save();
 

@@ -5,7 +5,7 @@ import Cotizacion from '@/models/Cotizacion';
 import Cita from '@/models/Cita';
 import Comision from '@/models/Comision';
 import Contratista from '@/models/Contratista';
-import { enviarEmailsCitaAceptada, enviarEmailsCitaCancelada } from '@/lib/email-service';
+import { enviarEmailsCitaAceptada, enviarEmailsCitaCancelada, enviarEmailCitaCotizada } from '@/lib/email-service';
 
 // GET - Obtener una cotización específica
 export async function GET(request, { params }) {
@@ -165,7 +165,12 @@ export async function PUT(request, { params }) {
   }
 }
 
-// PATCH - Actualizar estado de cotización (aceptar/rechazar)
+// PATCH - Doble propósito:
+//  A) Revisión del contratista sobre la estimación de un técnico:
+//     - Aprobar/editar → { manoDeObra?, materiales?, descripcion?, estado: 'enviada' }
+//     - Rechazar       → { estado: 'rechazada_contratista', motivoRechazo }
+//     Recalcula subtotal/iva/total al editar (vía pre-save del modelo).
+//  B) Decisión del cliente sobre una cotización 'enviada': { estado: 'aceptada' | 'rechazada' }
 export async function PATCH(request, { params }) {
   try {
     await connectDB();
@@ -173,7 +178,7 @@ export async function PATCH(request, { params }) {
     const body = await request.json();
     const { estado } = body;
 
-    const estadosPermitidos = ['enviada', 'aceptada', 'rechazada'];
+    const estadosPermitidos = ['enviada', 'rechazada_contratista', 'aceptada', 'rechazada'];
     if (!estadosPermitidos.includes(estado)) {
       return NextResponse.json(
         { error: `Estado no válido. Debe ser: ${estadosPermitidos.join(', ')}` },
@@ -186,6 +191,78 @@ export async function PATCH(request, { params }) {
       return NextResponse.json(
         { error: 'Cotización no encontrada' },
         { status: 404 }
+      );
+    }
+
+    // --- Flujo A: revisión del contratista (solo desde pendiente_contratista) ---
+    const esRevisionContratista = estado === 'enviada' || estado === 'rechazada_contratista';
+
+    if (esRevisionContratista) {
+      if (cotizacion.estado !== 'pendiente_contratista') {
+        return NextResponse.json(
+          { error: `Solo se pueden revisar cotizaciones en 'pendiente_contratista' (actual: ${cotizacion.estado})` },
+          { status: 400 }
+        );
+      }
+
+      if (estado === 'rechazada_contratista') {
+        cotizacion.estado = 'rechazada_contratista';
+        cotizacion.motivoRechazo = body.motivoRechazo?.trim() || '';
+        await cotizacion.save();
+        return NextResponse.json({
+          message: 'Estimación devuelta al técnico',
+          cotizacion
+        });
+      }
+
+      // estado === 'enviada': el contratista aprueba (opcionalmente editando)
+      if (body.manoDeObra !== undefined) cotizacion.manoDeObra = parseFloat(body.manoDeObra) || 0;
+      if (body.descripcion !== undefined) cotizacion.descripcionTrabajo = body.descripcion;
+      if (Array.isArray(body.materiales)) {
+        cotizacion.materiales = body.materiales.map(m => ({
+          nombre: m.nombre,
+          descripcion: m.descripcion || '',
+          cantidad: parseFloat(m.cantidad) || 0,
+          precioPorUnidad: parseFloat(m.precio ?? m.precioPorUnidad) || 0,
+          total: parseFloat(m.total) || (parseFloat(m.cantidad) || 0) * (parseFloat(m.precio ?? m.precioPorUnidad) || 0),
+          materialCatalogoId: m.materialCatalogoId || null
+        }));
+      }
+      cotizacion.estado = 'enviada';
+      cotizacion.motivoRechazo = undefined;
+
+      // El pre-save recalcula subtotal, iva y total
+      await cotizacion.save();
+
+      // Ahora es visible al cliente: avanzar la cita y notificar
+      const cita = await Cita.findById(cotizacion.cita?._id || cotizacion.cita);
+      if (cita) {
+        if (cita.estado === 'solicitada' || cita.estado === 'atendida') {
+          cita.estado = 'cotizada';
+          await cita.save();
+        }
+        await cita.populate('cliente', 'nombre email telefono');
+        await cita.populate('servicio', 'nombre descripcion categoria');
+        enviarEmailCitaCotizada({
+          cita,
+          cliente: cita.cliente,
+          servicio: cita.servicio,
+          cotizacion: { total: cotizacion.total, items: cotizacion.materiales }
+        }).catch(err => console.error('Error enviando email cotizacion aprobada por contratista:', err));
+      }
+
+      return NextResponse.json({
+        message: 'Cotización aprobada y enviada al cliente',
+        cotizacion
+      });
+    }
+
+    // --- Flujo B: decisión del cliente (aceptada / rechazada) ---
+    // Solo sobre cotizaciones visibles ('enviada'); nunca sobre estados internos.
+    if (cotizacion.estado !== 'enviada') {
+      return NextResponse.json(
+        { error: `La cotización no está disponible para decisión del cliente (estado: ${cotizacion.estado})` },
+        { status: 400 }
       );
     }
 
