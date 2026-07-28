@@ -6,6 +6,7 @@ import Contratista from '@/models/Contratista';
 import Servicio from '@/models/Servicio';
 import User from '@/models/User';
 import { uploadMultipleImages } from '@/lib/cloudinary';
+import { resolverAreaId } from '@/lib/geo-utils';
 
 // POST: Solicitar un servicio programable
 export async function POST(request) {
@@ -118,6 +119,9 @@ export async function POST(request) {
         console.error('Error subiendo imágenes:', error);
       }
     }
+
+    // Resolver la zona (Area) a partir de las coordenadas de la dirección seleccionada
+    ubicacionProcesada.zona = await resolverAreaId(ubicacionProcesada.coordenadas);
 
     // Crear cita
     const nuevaCita = new Cita({

@@ -8,6 +8,7 @@ import { hashPassword } from '@/lib/auth';
 
 // GET /api/tecnicos?contratistaId=xxx
 // GET /api/tecnicos?userId=xxx
+// GET /api/tecnicos?contratistaId=xxx&areaId=yyy → solo técnicos que cubren esa zona
 export async function GET(request) {
   try {
     await connectDB();
@@ -15,14 +16,18 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const contratistaId = searchParams.get('contratistaId');
     const userId = searchParams.get('userId');
+    const areaId = searchParams.get('areaId');
 
     const filtro = {};
     if (contratistaId) filtro.contratista = contratistaId;
     if (userId) filtro.user = userId;
+    // Filtrar por zona de cobertura solo si se proporciona areaId
+    if (areaId) filtro.areasCobertura = areaId;
 
     const tecnicos = await Tecnico.find(filtro)
       .populate('user', 'nombre email telefono fotoUrl')
       .populate('contratista', 'nombre email')
+      .populate('areasCobertura', 'nombre clasificacion')
       .sort({ createdAt: -1 });
 
     return NextResponse.json(tecnicos);
@@ -39,7 +44,7 @@ export async function POST(request) {
     await connectDB();
 
     const body = await request.json();
-    const { nombre, email, password, telefono, contratistaId, especialidades = [] } = body;
+    const { nombre, email, password, telefono, contratistaId, especialidades = [], areasCobertura = [] } = body;
 
     if (!nombre || !email || !password || !contratistaId) {
       return NextResponse.json(
@@ -79,6 +84,7 @@ export async function POST(request) {
       user: user._id,
       contratista: contratistaId,
       especialidades,
+      areasCobertura,
       activo: true
     });
 

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from 'react';
-import { FaUserAlt, FaLock, FaEnvelope, FaPhone, FaStore, FaEye, FaEyeSlash, FaCheckCircle } from 'react-icons/fa';
+import { FaUserAlt, FaLock, FaEnvelope, FaPhone, FaStore, FaEye, FaEyeSlash, FaCheckCircle, FaMapMarkerAlt } from 'react-icons/fa';
+import MapLocationSelector from '@/components/maps/MapLocationSelector';
 
 export default function RegisterFerretero() {
   const [form, setForm] = useState({
@@ -17,6 +18,10 @@ export default function RegisterFerretero() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
+  // Ubicación del negocio (obligatoria para búsqueda de materiales por cercanía)
+  const [ubicacion, setUbicacion] = useState(null); // { lat, lng, addressData? }
+  const [showMapa, setShowMapa] = useState(false);
+
   const set = (field) => (e) => setForm(p => ({ ...p, [field]: e.target.value }));
 
   const handleSubmit = async (e) => {
@@ -31,6 +36,10 @@ export default function RegisterFerretero() {
       setError('La contraseña debe tener al menos 6 caracteres');
       return;
     }
+    if (!ubicacion) {
+      setError('Selecciona la ubicación de tu ferretería en el mapa');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -43,6 +52,8 @@ export default function RegisterFerretero() {
           email: form.email.trim().toLowerCase(),
           telefono: form.telefono.trim(),
           password: form.password,
+          direccion: ubicacion.addressData?.direccionCompleta || '',
+          ubicacion: { lat: ubicacion.lat, lng: ubicacion.lng },
         }),
       });
 
@@ -176,6 +187,34 @@ export default function RegisterFerretero() {
                 </div>
               </div>
 
+              {/* Ubicación del negocio */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación de la ferretería *</label>
+                <button
+                  type="button"
+                  onClick={() => setShowMapa(true)}
+                  className={`w-full min-h-12 px-4 py-2 border-2 rounded-xl text-sm text-left flex items-center gap-2 transition-colors ${
+                    ubicacion
+                      ? 'border-green-300 bg-green-50 text-gray-900'
+                      : 'border-gray-200 bg-white text-gray-400 hover:border-primary'
+                  }`}
+                >
+                  <FaMapMarkerAlt className={ubicacion ? 'text-green-500' : 'text-gray-400'} size={14} />
+                  {ubicacion ? (
+                    <span className="flex-1">
+                      {ubicacion.addressData?.direccionCompleta
+                        ? ubicacion.addressData.direccionCompleta
+                        : `${ubicacion.lat.toFixed(5)}, ${ubicacion.lng.toFixed(5)}`}
+                    </span>
+                  ) : (
+                    <span className="flex-1">Seleccionar en el mapa</span>
+                  )}
+                </button>
+                <p className="text-xs text-gray-500 mt-1">
+                  Se usa para mostrar tus materiales a contratistas cercanos.
+                </p>
+              </div>
+
               {/* Contraseña */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña *</label>
@@ -261,6 +300,14 @@ export default function RegisterFerretero() {
           </div>
         </div>
       </div>
+
+      <MapLocationSelector
+        isOpen={showMapa}
+        onClose={() => setShowMapa(false)}
+        onLocationSelect={setUbicacion}
+        initialLocation={ubicacion}
+        title="Ubicación de tu ferretería"
+      />
     </div>
   );
 }

@@ -17,6 +17,11 @@ const tecnicoSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  // Zonas (Areas) que este técnico puede cubrir. Un técnico puede cubrir varias.
+  areasCobertura: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Area'
+  }],
   especialidades: [{ type: String, trim: true }],
   estadisticas: {
     serviciosRealizados: { type: Number, default: 0 },
@@ -27,5 +32,6 @@ const tecnicoSchema = new mongoose.Schema({
 });
 
 tecnicoSchema.index({ contratista: 1, activo: 1 });
+tecnicoSchema.index({ contratista: 1, areasCobertura: 1 });
 
 export default mongoose.models.Tecnico || mongoose.model('Tecnico', tecnicoSchema);
