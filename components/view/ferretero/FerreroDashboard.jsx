@@ -8,8 +8,9 @@ import Modal from '@/components/ui/Modal';
 import {
   FaStore, FaBoxOpen, FaPlus, FaEdit, FaTrash, FaSearch,
   FaToggleOn, FaToggleOff, FaSignOutAlt, FaBars, FaTimes,
-  FaTag, FaChevronDown, FaCheck, FaImage, FaSave
+  FaTag, FaChevronDown, FaCheck, FaImage, FaSave, FaMapMarkerAlt
 } from 'react-icons/fa';
+import MapLocationSelector from '@/components/maps/MapLocationSelector';
 
 const UNIDADES = [
   { value: 'pieza', label: 'Pieza' },
@@ -48,6 +49,10 @@ export default function FerreroDashboard() {
   const [ferreteroData, setFerreteroData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Ubicación del negocio
+  const [showMapaUbicacion, setShowMapaUbicacion] = useState(false);
+  const [guardandoUbicacion, setGuardandoUbicacion] = useState(false);
 
   // Catálogo
   const [materiales, setMateriales] = useState([]);
@@ -129,6 +134,37 @@ export default function FerreroDashboard() {
       }
     } catch {
       showError('Error al cambiar estado del catálogo');
+    }
+  };
+
+  // ─── Guardar ubicación del negocio ────────────────────────────────────────────
+  const guardarUbicacion = async (loc) => {
+    if (!ferreteroData?._id || !loc) return;
+    setGuardandoUbicacion(true);
+    try {
+      const res = await fetch(`/api/ferreteros/${ferreteroData._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          direccion: loc.addressData?.direccionCompleta || ferreteroData.direccion || '',
+          ubicacion: { lat: loc.lat, lng: loc.lng },
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFerreteroData(prev => ({
+          ...prev,
+          direccion: data.ferretero?.direccion ?? prev.direccion,
+          ubicacion: data.ferretero?.ubicacion ?? { type: 'Point', coordinates: [loc.lng, loc.lat] },
+        }));
+        showSuccess('Ubicación actualizada correctamente');
+      } else {
+        showError('Error al guardar la ubicación');
+      }
+    } catch {
+      showError('Error de conexión al guardar la ubicación');
+    } finally {
+      setGuardandoUbicacion(false);
     }
   };
 
@@ -380,6 +416,40 @@ export default function FerreroDashboard() {
                   {ferreteroData?.catalogoActivo ? <FaToggleOn /> : <FaToggleOff />}
                 </button>
               </div>
+            </div>
+
+            {/* Ubicación del negocio */}
+            <div className={`rounded-xl p-4 border ${
+              ferreteroData?.ubicacion?.coordinates?.length === 2
+                ? 'bg-gray-50 border-gray-100'
+                : 'bg-amber-50 border-amber-200'
+            }`}>
+              <div className="flex items-start gap-2 mb-2">
+                <FaMapMarkerAlt className={ferreteroData?.ubicacion?.coordinates?.length === 2 ? 'text-primary mt-0.5' : 'text-amber-500 mt-0.5'} size={14} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-700">Ubicación del negocio</p>
+                  {ferreteroData?.ubicacion?.coordinates?.length === 2 ? (
+                    <p className="text-xs text-gray-500 mt-0.5 truncate">
+                      {ferreteroData.direccion || `${ferreteroData.ubicacion.coordinates[1].toFixed(5)}, ${ferreteroData.ubicacion.coordinates[0].toFixed(5)}`}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      Falta tu ubicación. Sin ella no apareces en búsquedas por cercanía.
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMapaUbicacion(true)}
+                disabled={guardandoUbicacion}
+                className="w-full text-xs font-semibold text-primary hover:text-primary/80 disabled:opacity-50 text-left"
+              >
+                {guardandoUbicacion
+                  ? 'Guardando...'
+                  : ferreteroData?.ubicacion?.coordinates?.length === 2
+                    ? 'Cambiar ubicación'
+                    : 'Agregar ubicación'}
+              </button>
             </div>
           </div>
 
@@ -820,6 +890,19 @@ export default function FerreroDashboard() {
           </div>
         </div>
       )}
+
+      {/* Selector de ubicación del negocio */}
+      <MapLocationSelector
+        isOpen={showMapaUbicacion}
+        onClose={() => setShowMapaUbicacion(false)}
+        onLocationSelect={guardarUbicacion}
+        initialLocation={
+          ferreteroData?.ubicacion?.coordinates?.length === 2
+            ? { lat: ferreteroData.ubicacion.coordinates[1], lng: ferreteroData.ubicacion.coordinates[0] }
+            : null
+        }
+        title="Ubicación de tu ferretería"
+      />
 
       {/* Modal confirmaciones */}
       <Modal {...modalState} onClose={hideModal} />
