@@ -41,9 +41,24 @@ export async function PUT(request, { params }) {
       cotizacion.estado = 'aceptada';
       await cotizacion.save();
 
+      // Rechazar las demás cotizaciones de la cita para evitar múltiples aceptadas huérfanas
+      await Cotizacion.updateMany(
+        {
+          cita: cotizacion.cita,
+          _id: { $ne: cotizacion._id },
+          estado: { $in: ['pendiente', 'enviada'] }
+        },
+        { estado: 'rechazada' }
+      );
+
       // Actualizar cita
       cita.cotizacionAceptada = cotizacion._id;
       cita.estado = 'aceptada';
+      // Garantizar que la cotización aceptada esté en el array de la cita (auto-sanación
+      // de citas cuyo array quedó desincronizado).
+      if (!cita.cotizaciones.some(c => c.toString() === cotizacion._id.toString())) {
+        cita.cotizaciones.push(cotizacion._id);
+      }
       if (fechaProgramada) {
         cita.fechaProgramada = new Date(fechaProgramada);
       }
@@ -123,6 +138,9 @@ export async function POST(request, { params }) {
       // Actualizar cita
       cita.estado = 'aceptada';
       cita.cotizacionAceptada = cotizacion._id;
+      if (!cita.cotizaciones.some(c => c.toString() === cotizacion._id.toString())) {
+        cita.cotizaciones.push(cotizacion._id);
+      }
 
       await cita.save();
 

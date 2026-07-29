@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Cita from '@/models/Cita';
+import Cotizacion from '@/models/Cotizacion';
 import Comision from '@/models/Comision';
 import { enviarNotificacionCambioEstado } from '@/lib/email-service';
 
@@ -104,13 +105,20 @@ export async function PATCH(request, { params }) {
         comentario: comentario || `Estado cambiado de ${estadoAnterior} a ${estado}`
       });
 
-      await cita.save();
+      // Guardado defensivo: validamos solo los campos modificados para no
+      // bloquear la transición por datos legados inconsistentes en otros campos.
+      await cita.save({ validateModifiedOnly: true });
 
-      // Populamos los datos para la respuesta y emails
+      // Populamos los datos para la respuesta y emails.
+      // El modelo usa cotizaciones[] y cotizacionAceptada (no existe 'cotizacion').
       await cita.populate('cliente', 'nombre email telefono');
       await cita.populate('contratista', 'nombre email telefono calificacion');
       await cita.populate('servicio', 'nombre descripcion categoria precio');
-      await cita.populate('cotizacion');
+      await cita.populate('cotizacionAceptada');
+
+      // Resolver la cotización aceptada de forma robusta: si la cita no la tiene
+      // referenciada (datos huérfanos), buscarla en la colección por citaId + estado.
+      const cotizacion = await resolverCotizacionAceptada(cita);
 
       // Enviar notificaciones de email (no bloqueante)
       enviarNotificacionCambioEstado({
@@ -119,7 +127,7 @@ export async function PATCH(request, { params }) {
         cliente: cita.cliente,
         contratista: cita.contratista,
         servicio: cita.servicio,
-        cotizacion: cita.cotizacion
+        cotizacion
       }).catch(err => console.error('Error enviando emails cambio estado PATCH:', err));
 
       return NextResponse.json(cita);
@@ -129,17 +137,40 @@ export async function PATCH(request, { params }) {
     await cita.populate('cliente', 'nombre email telefono');
     await cita.populate('contratista', 'nombre email telefono calificacion');
     await cita.populate('servicio', 'nombre descripcion categoria precio');
-    await cita.populate('cotizacion');
+    await cita.populate('cotizacionAceptada');
 
     return NextResponse.json(cita);
 
   } catch (error) {
     console.error('Error al actualizar cita:', error);
+    // Datos inconsistentes (validación de Mongoose) → 400 con detalle, no 500 opaco.
+    if (error?.name === 'ValidationError' || error?.name === 'CastError') {
+      return NextResponse.json(
+        { error: 'Datos de la cita inconsistentes', detalle: error.message },
+        { status: 400 }
+      );
+    }
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }
     );
   }
+}
+
+/**
+ * Resuelve la cotización aceptada de una cita de forma tolerante a datos huérfanos.
+ * Prioriza cita.cotizacionAceptada; si es null, busca en la colección Cotizacion
+ * por citaId + estado 'aceptada' (caso de citas cuyo array quedó desincronizado).
+ * @returns {Promise<object|null>}
+ */
+async function resolverCotizacionAceptada(cita) {
+  if (cita.cotizacionAceptada) {
+    // Ya viene poblada por el populate previo, o es un ObjectId: normalizar a doc.
+    return cita.cotizacionAceptada._id
+      ? cita.cotizacionAceptada
+      : await Cotizacion.findById(cita.cotizacionAceptada);
+  }
+  return Cotizacion.findOne({ cita: cita._id, estado: 'aceptada' }).sort({ createdAt: -1 });
 }
 
 // PUT - Actualizar una cita específica (SIMPLIFICADO PARA DEMO)
