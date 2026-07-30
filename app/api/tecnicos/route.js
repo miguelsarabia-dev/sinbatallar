@@ -18,9 +18,28 @@ export async function GET(request) {
     const userId = searchParams.get('userId');
     const areaId = searchParams.get('areaId');
 
-    const filtro = {};
-    if (contratistaId) filtro.contratista = contratistaId;
-    if (userId) filtro.user = userId;
+    const filtroBase = {};
+    if (contratistaId) filtroBase.contratista = contratistaId;
+    if (userId) filtroBase.user = userId;
+
+    // Self-healing de zonas: rellenar el areasCobertura vacío de los técnicos con la
+    // zona de su contratista antes de filtrar (mismo patrón que ubicacion.zona en citas).
+    const conZonaVacia = await Tecnico.find({
+      ...filtroBase,
+      $or: [{ areasCobertura: { $exists: false } }, { areasCobertura: { $size: 0 } }]
+    }).populate('contratista', 'areaId');
+
+    for (const t of conZonaVacia) {
+      const zonaContratista = t.contratista?.areaId;
+      if (zonaContratista) {
+        await Tecnico.updateOne(
+          { _id: t._id },
+          { $set: { areasCobertura: [zonaContratista] } }
+        );
+      }
+    }
+
+    const filtro = { ...filtroBase };
     // Filtrar por zona de cobertura solo si se proporciona areaId
     if (areaId) filtro.areasCobertura = areaId;
 
@@ -80,11 +99,18 @@ export async function POST(request) {
       role: 'tecnico'
     });
 
+    // Herencia de zonas: si el body no trae areasCobertura, el técnico hereda por
+    // defecto la zona de su contratista. Si viene explícito, se respeta (override manual).
+    let areasFinales = Array.isArray(areasCobertura) ? areasCobertura : [];
+    if (areasFinales.length === 0 && contratista.areaId) {
+      areasFinales = [contratista.areaId];
+    }
+
     const tecnico = await Tecnico.create({
       user: user._id,
       contratista: contratistaId,
       especialidades,
-      areasCobertura,
+      areasCobertura: areasFinales,
       activo: true
     });
 
