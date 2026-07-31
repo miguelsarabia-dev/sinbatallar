@@ -61,14 +61,20 @@ export async function POST(request) {
       contratista: contratistaId
     });
 
-    const materialesFormateados = materiales.map(material => ({
-      nombre: material.nombre,
-      descripcion: material.descripcion || '',
-      cantidad: parseFloat(material.cantidad) || 0,
-      precioPorUnidad: parseFloat(material.precio) || 0,
-      total: parseFloat(material.total) || 0,
-      materialCatalogoId: material.materialCatalogoId || null
-    }));
+    const materialesFormateados = materiales.map(material => {
+      const cantidad = parseFloat(material.cantidad) || 0;
+      // El cliente envía precioPorUnidad; aceptamos material.precio como alias legado.
+      const precioPorUnidad = parseFloat(material.precioPorUnidad ?? material.precio) || 0;
+      return {
+        nombre: material.nombre,
+        descripcion: material.descripcion || '',
+        cantidad,
+        precioPorUnidad,
+        // total siempre se calcula en el backend, no se confía en el que envíe el cliente.
+        total: cantidad * precioPorUnidad,
+        materialCatalogoId: material.materialCatalogoId || null
+      };
+    });
 
     if (cotizacion) {
       // Actualizar cotización existente
