@@ -1,8 +1,23 @@
 import { connectDB } from '@/lib/mongoose'
 import User from '@/models/User'
+import Incorporador from '@/models/Incorporador'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 import { enviarEmailBienvenidaCliente } from '@/lib/email-service'
+
+// Garantiza que un usuario con rol incorporador tenga su doc en la colección
+// incorporadores. Idempotente: no duplica si ya existe. El registro de
+// contratistas requiere ese doc (POST /contratistas exige su _id).
+async function asegurarDocIncorporador(userId) {
+    try {
+        const existente = await Incorporador.findOne({ user: userId });
+        if (!existente) {
+            await Incorporador.create({ user: userId });
+        }
+    } catch (err) {
+        console.error('Error asegurando doc de incorporador:', err);
+    }
+}
 
 // Función de validación sin YUP
 function validateUserData(data, isRegister = false) {
@@ -129,6 +144,10 @@ export async function POST(request) {
                     }).catch(err => console.error('Error enviando email de bienvenida:', err));
                 }
 
+                if (user.role === 'incorporador') {
+                    await asegurarDocIncorporador(user._id);
+                }
+
                 return NextResponse.json({
                     message: 'Usuario creado exitosamente',
                     _id: user._id,
@@ -208,6 +227,13 @@ export async function PUT(request) {
         const { _id, id, ...rest } = data;
         const user = await User.findByIdAndUpdate(userId, rest, { new: true });
         if (!user) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+
+        // Si el usuario quedó como incorporador, garantizar su doc para no
+        // bloquear el registro de contratistas.
+        if (user.role === 'incorporador') {
+            await asegurarDocIncorporador(user._id);
+        }
+
         return NextResponse.json(user);
     } catch (error) {
         return NextResponse.json({ error: 'Error al actualizar usuario', details: error.message }, { status: 400 });
