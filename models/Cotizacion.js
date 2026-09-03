@@ -35,7 +35,30 @@ const cotizacionSchema = new mongoose.Schema({
   },
 
   // Imágenes de la cotización
-  imagenesCotizacion: [{ type: String }]
+  imagenesCotizacion: [{ type: String }],
+
+  // ── Pago por transferencia (comprobante vía WhatsApp, fuera de la app) ────
+  // El pago se divide 50% anticipo + 50% saldo. El cliente NO sube el
+  // comprobante aquí: lo envía al contratista por WhatsApp y en la app solo
+  // DECLARA que ya pagó. El contratista luego VERIFICA manualmente.
+  anticipo: {
+    monto: { type: Number, default: 0, min: 0 },
+    // declarado: el cliente afirmó que ya pagó (envió el comprobante por WhatsApp).
+    declarado: { type: Boolean, default: false },
+    fechaDeclaracion: { type: Date, default: null },
+    via: { type: String, trim: true, default: null }, // p.ej. 'whatsapp'
+    // verificado: el contratista confirmó el comprobante recibido.
+    verificado: { type: Boolean, default: false },
+    fechaVerificacion: { type: Date, default: null }
+  },
+  saldo: {
+    monto: { type: Number, default: 0, min: 0 },
+    declarado: { type: Boolean, default: false },
+    fechaDeclaracion: { type: Date, default: null },
+    via: { type: String, trim: true, default: null },
+    verificado: { type: Boolean, default: false },
+    fechaVerificacion: { type: Date, default: null }
+  }
 
 }, {
   timestamps: true
@@ -74,5 +97,30 @@ cotizacionSchema.methods.recalcular = function () {
   this.total = this.subtotal + this.iva;
   return this;
 };
+
+// Virtuals de pago: exponen flags planos que el frontend consume en los GET.
+cotizacionSchema.virtual('anticipoDeclarado').get(function () {
+  return !!this.anticipo?.declarado;
+});
+cotizacionSchema.virtual('anticipoVerificado').get(function () {
+  return !!this.anticipo?.verificado;
+});
+cotizacionSchema.virtual('saldoDeclarado').get(function () {
+  return !!this.saldo?.declarado;
+});
+cotizacionSchema.virtual('saldoVerificado').get(function () {
+  return !!this.saldo?.verificado;
+});
+// El cliente declaró que pagó todo (anticipo + saldo).
+cotizacionSchema.virtual('pagadoCompleto').get(function () {
+  return !!this.anticipo?.declarado && !!this.saldo?.declarado;
+});
+// pagado (cierre con certeza): ambas partes verificadas por el contratista.
+cotizacionSchema.virtual('pagado').get(function () {
+  return !!this.anticipo?.verificado && !!this.saldo?.verificado;
+});
+
+cotizacionSchema.set('toJSON', { virtuals: true });
+cotizacionSchema.set('toObject', { virtuals: true });
 
 export default mongoose.models.Cotizacion || mongoose.model('Cotizacion', cotizacionSchema);
