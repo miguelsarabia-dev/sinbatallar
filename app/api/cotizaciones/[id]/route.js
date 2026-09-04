@@ -178,7 +178,24 @@ export async function PATCH(request, { params }) {
     const body = await request.json();
     const { estado } = body;
 
-    const estadosPermitidos = ['enviada', 'rechazada_contratista', 'aceptada', 'rechazada'];
+    // --- Flujo C: declaración de pago del cliente sin transición de estado ---
+    // El saldo final llega como { pagadoCompleto: true, paymentInfo: { tipo: 'saldo', ... } }
+    // (sin `estado`). El comprobante va por WhatsApp; aquí solo se registra la
+    // declaración, pendiente de verificación por el contratista.
+    if (!estado && (body.pagadoCompleto === true || body.paymentInfo?.comprobanteDeclarado)) {
+      const cotizacion = await Cotizacion.findById(id);
+      if (!cotizacion) {
+        return NextResponse.json({ error: 'Cotización no encontrada' }, { status: 404 });
+      }
+      aplicarDeclaracionPago(cotizacion, body.paymentInfo, 'saldo');
+      await cotizacion.save();
+      return NextResponse.json({
+        message: 'Pago de saldo declarado. Pendiente de verificación por el contratista.',
+        cotizacion
+      });
+    }
+
+    const estadosPermitidos = ['enviada', 'aceptada', 'rechazada'];
     if (!estadosPermitidos.includes(estado)) {
       return NextResponse.json(
         { error: `Estado no válido. Debe ser: ${estadosPermitidos.join(', ')}` },
@@ -270,6 +287,12 @@ export async function PATCH(request, { params }) {
 
     // Si se acepta la cotización
     if (estado === 'aceptada') {
+      // El cliente acepta y, en el mismo paso, declara el pago del anticipo
+      // (comprobante enviado por WhatsApp). Persistir esa declaración.
+      if (body.paymentInfo) {
+        aplicarDeclaracionPago(cotizacion, body.paymentInfo, 'anticipo');
+      }
+
       const cita = await Cita.findById(cotizacion.cita);
 
       if (cita) {
@@ -336,5 +359,30 @@ export async function PATCH(request, { params }) {
       { error: 'Error interno del servidor' },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Registra en la cotización la declaración de pago del cliente (anticipo o saldo).
+ * El comprobante viaja por WhatsApp; aquí solo se marca "declarado", pendiente de
+ * verificación manual por el contratista. Rehacer una declaración no altera un
+ * `verificado` previo (eso lo maneja el contratista en /verificar-pago).
+ * @param {import('mongoose').Document} cotizacion
+ * @param {{tipo?: string, monto?: number, comprobanteDeclarado?: boolean, via?: string}} paymentInfo
+ * @param {'anticipo'|'saldo'} tipoPorDefecto - usado si paymentInfo.tipo no es válido
+ */
+function aplicarDeclaracionPago(cotizacion, paymentInfo = {}, tipoPorDefecto) {
+  const tipo = ['anticipo', 'saldo'].includes(paymentInfo?.tipo)
+    ? paymentInfo.tipo
+    : tipoPorDefecto;
+
+  const parte = cotizacion[tipo];
+  parte.declarado = true;
+  parte.fechaDeclaracion = parte.fechaDeclaracion || new Date();
+  if (paymentInfo?.via) parte.via = paymentInfo.via;
+
+  const monto = Number(paymentInfo?.monto);
+  if (Number.isFinite(monto) && monto > 0) {
+    parte.monto = monto;
   }
 }
