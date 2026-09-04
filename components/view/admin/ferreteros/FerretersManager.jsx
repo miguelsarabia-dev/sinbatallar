@@ -1,12 +1,20 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FaStore, FaCheck, FaTimes, FaTrash, FaToggleOn, FaToggleOff, FaSync, FaClock } from 'react-icons/fa';
+import { FaStore, FaCheck, FaTimes, FaTrash, FaToggleOn, FaToggleOff, FaSync, FaClock, FaMapMarkerAlt } from 'react-icons/fa';
+import MapLocationSelector from '@/components/maps/MapLocationSelector';
+
+// Devuelve { lat, lng } desde el GeoJSON Point del ferretero, o null
+function coordsDeFerretero(f) {
+  const c = f?.ubicacion?.coordinates;
+  return Array.isArray(c) && c.length === 2 ? { lat: c[1], lng: c[0] } : null;
+}
 
 export default function FerretersManager({ showError, showSuccess, showConfirm }) {
   const [ferreteros, setFerreteros] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState('pendientes'); // pendientes | activos | todos
+  const [ubicacionModal, setUbicacionModal] = useState(null); // ferretero seleccionado para ver ubicación
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -68,6 +76,30 @@ export default function FerretersManager({ showError, showSuccess, showConfirm }
         showError?.('Error al eliminar ferretero');
       }
     });
+  };
+
+  // El admin puede corregir la ubicación de una ferretería desde el visor
+  const guardarUbicacionAdmin = async (loc) => {
+    const f = ubicacionModal;
+    if (!f?._id || !loc) return;
+    try {
+      const res = await fetch(`/api/ferreteros/${f._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          direccion: loc.addressData?.direccionCompleta || f.direccion || '',
+          ubicacion: { lat: loc.lat, lng: loc.lng },
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setFerreteros(prev => prev.map(x => x._id === f._id
+        ? { ...x, direccion: loc.addressData?.direccionCompleta || x.direccion, ubicacion: { type: 'Point', coordinates: [loc.lng, loc.lat] } }
+        : x
+      ));
+      showSuccess?.('Ubicación actualizada');
+    } catch {
+      showError?.('Error al actualizar la ubicación');
+    }
   };
 
   const lista = ferreteros.filter(f => {
@@ -132,6 +164,7 @@ export default function FerretersManager({ showError, showSuccess, showConfirm }
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Responsable</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase hidden md:table-cell">Email</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Estado</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Ubicación</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase hidden md:table-cell">Registro</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Acciones</th>
               </tr>
@@ -168,6 +201,23 @@ export default function FerretersManager({ showError, showSuccess, showConfirm }
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
                         <FaTimes size={10} />
                         Inactivo
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {coordsDeFerretero(f) ? (
+                      <button
+                        onClick={() => setUbicacionModal(f)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                        title="Ver ubicación en el mapa"
+                      >
+                        <FaMapMarkerAlt size={10} />
+                        Ver mapa
+                      </button>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700" title="Sin ubicación: no aparece en búsquedas por cercanía">
+                        <FaTimes size={10} />
+                        Sin ubicación
                       </span>
                     )}
                   </td>
@@ -208,6 +258,15 @@ export default function FerretersManager({ showError, showSuccess, showConfirm }
           </table>
         </div>
       )}
+
+      {/* Visor / editor de ubicación de la ferretería */}
+      <MapLocationSelector
+        isOpen={!!ubicacionModal}
+        onClose={() => setUbicacionModal(null)}
+        onLocationSelect={guardarUbicacionAdmin}
+        initialLocation={ubicacionModal ? coordsDeFerretero(ubicacionModal) : null}
+        title={ubicacionModal ? `Ubicación de ${ubicacionModal.nombreNegocio}` : 'Ubicación'}
+      />
     </div>
   );
 }

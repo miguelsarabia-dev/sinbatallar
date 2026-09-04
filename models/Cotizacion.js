@@ -5,6 +5,9 @@ const cotizacionSchema = new mongoose.Schema({
   // Referencias principales
   cita: { type: mongoose.Schema.Types.ObjectId, ref: 'Cita', required: true },
   contratista: { type: mongoose.Schema.Types.ObjectId, ref: 'Contratista', required: true },
+  // Técnico que originó la estimación (opcional). Si existe, la cotización pasa
+  // primero por revisión del contratista antes de llegar al cliente.
+  tecnico: { type: mongoose.Schema.Types.ObjectId, ref: 'Tecnico', default: null },
 
   // Descripción del trabajo
   descripcionTrabajo: { type: String, trim: true },
@@ -28,11 +31,19 @@ const cotizacionSchema = new mongoose.Schema({
   total: { type: Number, default: 0, min: 0 },
 
   // Estado de la cotización
+  // - pendiente_contratista: creada por un técnico, esperando revisión del contratista (NO visible al cliente)
+  // - rechazada_contratista: el contratista la devolvió al técnico (NO visible al cliente)
+  // - enviada: aprobada/creada por el contratista, visible al cliente
+  // - aceptada / rechazada: decisión del cliente
+  // - pendiente: estado legado (compatibilidad con cotizaciones existentes)
   estado: {
     type: String,
-    enum: ['pendiente', 'enviada', 'aceptada', 'rechazada'],
+    enum: ['pendiente', 'pendiente_contratista', 'rechazada_contratista', 'enviada', 'aceptada', 'rechazada'],
     default: 'pendiente'
   },
+
+  // Motivo cuando el contratista rechaza la estimación del técnico
+  motivoRechazo: { type: String, trim: true },
 
   // Imágenes de la cotización
   imagenesCotizacion: [{ type: String }],

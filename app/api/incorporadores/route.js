@@ -14,7 +14,7 @@ export async function GET(request) {
     const incorporadorId = searchParams.get('id');
     
     if (userId) {
-      const incorporador = await Incorporador.findOne({ user: userId })
+      let incorporador = await Incorporador.findOne({ user: userId })
         .populate('user', 'nombre email telefono foto')
         .populate({
           path: 'contratistasIncorporados',
@@ -23,14 +23,33 @@ export async function GET(request) {
             select: 'nombre categoria tipo'
           }
         });
-      
+
+      // Self-healing: si el usuario tiene rol incorporador pero le falta su doc,
+      // lo creamos al vuelo. Desbloquea cuentas antiguas creadas antes de que el
+      // alta generara el doc automáticamente.
+      if (!incorporador) {
+        const user = await User.findById(userId).select('role');
+        if (user && user.role === 'incorporador') {
+          await Incorporador.create({ user: userId });
+          incorporador = await Incorporador.findOne({ user: userId })
+            .populate('user', 'nombre email telefono foto')
+            .populate({
+              path: 'contratistasIncorporados',
+              populate: {
+                path: 'servicios',
+                select: 'nombre categoria tipo'
+              }
+            });
+        }
+      }
+
       if (!incorporador) {
         return NextResponse.json(
           { message: 'Incorporador no encontrado' },
           { status: 404 }
         );
       }
-      
+
       return NextResponse.json(incorporador);
     }
     
@@ -98,35 +117,30 @@ export async function POST(request) {
       );
     }
     
-    // Verificar que no existe ya un incorporador para este usuario
-    const incorporadorExistente = await Incorporador.findOne({ user: userId });
+    // Idempotente: si ya existe el doc para este usuario, lo devolvemos en vez
+    // de rechazar. Permite que el cliente lo use como fallback sin error opaco.
+    const incorporadorExistente = await Incorporador.findOne({ user: userId })
+      .populate('user', 'nombre email telefono');
     if (incorporadorExistente) {
-      return NextResponse.json(
-        { message: 'Ya existe un incorporador para este usuario' },
-        { status: 400 }
-      );
+      return NextResponse.json(incorporadorExistente, { status: 200 });
     }
-    
+
     // Actualizar el rol del usuario a 'incorporador'
     user.role = 'incorporador';
     await user.save();
-    
+
     // Crear el incorporador
     const nuevoIncorporador = await Incorporador.create({
       user: userId,
-      configuracion: {
-        porcentajeComision: porcentajeComision || 0,
-        notificaciones: {
-          nuevoContratista: true,
-          reportesSemanal: true
-        }
+      comision: {
+        porcentaje: typeof porcentajeComision === 'number' ? porcentajeComision : 3
       },
       observaciones: observaciones || ''
     });
-    
+
     const incorporadorCompleto = await Incorporador.findById(nuevoIncorporador._id)
       .populate('user', 'nombre email telefono');
-    
+
     return NextResponse.json(incorporadorCompleto, { status: 201 });
   } catch (error) {
     console.error('Error creando incorporador:', error);
@@ -143,38 +157,29 @@ export async function PUT(request) {
     await connectDB();
     
     const body = await request.json();
-    const { incorporadorId, activo, porcentajeComision, observaciones, notificaciones } = body;
-    
+    const { incorporadorId, activo, porcentajeComision, observaciones } = body;
+
     if (!incorporadorId) {
       return NextResponse.json(
         { message: 'El ID del incorporador es requerido' },
         { status: 400 }
       );
     }
-    
+
     const updateData = {};
-    
+
     if (typeof activo !== 'undefined') {
       updateData.activo = activo;
     }
-    
+
     if (typeof porcentajeComision !== 'undefined') {
-      updateData['configuracion.porcentajeComision'] = porcentajeComision;
+      updateData['comision.porcentaje'] = porcentajeComision;
     }
-    
+
     if (observaciones !== undefined) {
       updateData.observaciones = observaciones;
     }
-    
-    if (notificaciones) {
-      if (typeof notificaciones.nuevoContratista !== 'undefined') {
-        updateData['configuracion.notificaciones.nuevoContratista'] = notificaciones.nuevoContratista;
-      }
-      if (typeof notificaciones.reportesSemanal !== 'undefined') {
-        updateData['configuracion.notificaciones.reportesSemanal'] = notificaciones.reportesSemanal;
-      }
-    }
-    
+
     const incorporadorActualizado = await Incorporador.findByIdAndUpdate(
       incorporadorId,
       { $set: updateData },

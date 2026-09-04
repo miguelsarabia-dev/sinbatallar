@@ -20,20 +20,24 @@ export async function GET(request) {
       const Cita = (await import('@/models/Cita')).default;
       const citas = await Cita.find({ cliente: clienteId }).select('_id');
       filter.cita = { $in: citas.map(c => c._id) };
-      filter.estado = { $nin: ['pendiente'] };
+      // El cliente nunca ve cotizaciones en revisión interna del contratista/técnico
+      filter.estado = { $nin: ['pendiente', 'pendiente_contratista', 'rechazada_contratista'] };
     }
 
     if (contratistaId) {
       filter.contratista = contratistaId;
     }
 
-
+    // El filtro explícito por estado tiene prioridad (p.ej. ?estado=pendiente_contratista
+    // que usa el contratista para su bandeja "Por revisar").
     if (estado) {
-      filter.estado = estado;
+      const estados = estado.split(',').map(e => e.trim());
+      filter.estado = estados.length === 1 ? estados[0] : { $in: estados };
     }
 
     const cotizaciones = await Cotizacion.find(filter)
       .populate('contratista', 'nombre email telefono promedioCalificacion informacionPago')
+      .populate({ path: 'tecnico', populate: { path: 'user', select: 'nombre email' } })
       .populate({
         path: 'cita',
         populate: [

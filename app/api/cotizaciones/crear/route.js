@@ -15,11 +15,16 @@ export async function POST(request) {
     const {
       citaId,
       contratistaId,
+      tecnicoId = null,
       manoDeObra = 0,
       materiales = [],
       descripcion,
       imagenesCotizacion = []
     } = data;
+
+    // Si la crea un técnico → pasa primero por revisión del contratista (no visible al cliente).
+    // Si la crea el contratista directamente → nace visible al cliente.
+    const estadoInicial = tecnicoId ? 'pendiente_contratista' : 'enviada';
 
     // Validaciones básicas
     if (!citaId || !contratistaId) {
@@ -56,18 +61,28 @@ export async function POST(request) {
       contratista: contratistaId
     });
 
+    const materialesFormateados = materiales.map(material => {
+      const cantidad = parseFloat(material.cantidad) || 0;
+      // El cliente envía precioPorUnidad; aceptamos material.precio como alias legado.
+      const precioPorUnidad = parseFloat(material.precioPorUnidad ?? material.precio) || 0;
+      return {
+        nombre: material.nombre,
+        descripcion: material.descripcion || '',
+        cantidad,
+        precioPorUnidad,
+        // total siempre se calcula en el backend, no se confía en el que envíe el cliente.
+        total: cantidad * precioPorUnidad,
+        materialCatalogoId: material.materialCatalogoId || null
+      };
+    });
+
     if (cotizacion) {
       // Actualizar cotización existente
       cotizacion.manoDeObra = parseFloat(manoDeObra) || 0;
-      cotizacion.materiales = materiales.map(material => ({
-        nombre: material.nombre,
-        descripcion: material.descripcion || '',
-        cantidad: parseFloat(material.cantidad) || 0,
-        precioPorUnidad: parseFloat(material.precio) || 0,
-        total: parseFloat(material.total) || 0,
-        materialCatalogoId: material.materialCatalogoId || null
-      }));
+      cotizacion.materiales = materialesFormateados;
       cotizacion.descripcionTrabajo = descripcion || '';
+      cotizacion.tecnico = tecnicoId || cotizacion.tecnico;
+      cotizacion.estado = estadoInicial;
 
       if (imagenesCotizacion.length > 0) {
         cotizacion.imagenesCotizacion = imagenesCotizacion;
@@ -80,18 +95,12 @@ export async function POST(request) {
       cotizacion = new Cotizacion({
         cita: citaId,
         contratista: contratistaId,
+        tecnico: tecnicoId,
         manoDeObra: parseFloat(manoDeObra) || 0,
-        materiales: materiales.map(material => ({
-          nombre: material.nombre,
-          descripcion: material.descripcion || '',
-          cantidad: parseFloat(material.cantidad) || 0,
-          precioPorUnidad: parseFloat(material.precio) || 0,
-          total: parseFloat(material.total) || 0,
-          materialCatalogoId: material.materialCatalogoId || null
-        })),
+        materiales: materialesFormateados,
         descripcionTrabajo: descripcion || '',
         imagenesCotizacion,
-        estado: 'enviada'
+        estado: estadoInicial
       });
 
       await cotizacion.save();
@@ -100,26 +109,32 @@ export async function POST(request) {
       cita.cotizaciones.push(cotizacion._id);
     }
 
-    // Actualizar estado de la cita
-    if (cita.estado === 'solicitada' || cita.estado === 'atendida') {
+    // La cita solo avanza a 'cotizada' y se notifica al cliente cuando la cotización
+    // es visible para él (estado 'enviada'). Si está en revisión del contratista, no.
+    const visibleAlCliente = cotizacion.estado === 'enviada';
+
+    if (visibleAlCliente && (cita.estado === 'solicitada' || cita.estado === 'atendida')) {
       cita.estado = 'cotizada';
     }
 
     await cita.save();
 
-    // Enviar email de cotización al cliente
-    enviarEmailCitaCotizada({
-      cita,
-      cliente: cita.cliente,
-      servicio: cita.servicio,
-      cotizacion: {
-        total: cotizacion.total,
-        items: cotizacion.materiales
-      }
-    }).catch(err => console.error('Error enviando email cotizacion:', err));
+    if (visibleAlCliente) {
+      enviarEmailCitaCotizada({
+        cita,
+        cliente: cita.cliente,
+        servicio: cita.servicio,
+        cotizacion: {
+          total: cotizacion.total,
+          items: cotizacion.materiales
+        }
+      }).catch(err => console.error('Error enviando email cotizacion:', err));
+    }
 
     return NextResponse.json({
-      message: 'Cotización enviada exitosamente',
+      message: visibleAlCliente
+        ? 'Cotización enviada al cliente exitosamente'
+        : 'Estimación enviada al contratista para revisión',
       cotizacion: {
         _id: cotizacion._id,
         total: cotizacion.total,
@@ -131,7 +146,7 @@ export async function POST(request) {
         estado: cotizacion.estado,
         materiales: cotizacion.materiales
       },
-      citaEstado: 'cotizada'
+      citaEstado: cita.estado
     }, { status: 201 });
 
   } catch (error) {

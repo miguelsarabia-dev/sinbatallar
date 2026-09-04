@@ -7,6 +7,7 @@ import Servicio from '@/models/Servicio';
 import User from '@/models/User';
 import { enviarNotificacionCambioEstado } from '@/lib/email-service';
 import { uploadMultipleImages } from '@/lib/cloudinary';
+import { resolverAreaId } from '@/lib/geo-utils';
 
 // GET - Obtener citas
 export async function GET(request) {
@@ -65,7 +66,7 @@ export async function GET(request) {
       .populate('servicio', 'nombre descripcion categoria')
       .populate({
         path: 'cotizaciones',
-        match: clienteId ? { estado: { $nin: ['pendiente'] } } : {},
+        match: clienteId ? { estado: { $nin: ['pendiente', 'pendiente_contratista', 'rechazada_contratista'] } } : {},
         populate: {
           path: 'contratista',
           select: 'nombre email telefono informacionPago'
@@ -81,7 +82,29 @@ export async function GET(request) {
       .populate({ path: 'tecnico', populate: { path: 'user', select: 'nombre email telefono' } })
       .sort({ createdAt: -1, fechaProgramada: 1 });
 
-    return NextResponse.json(citas);
+    // Resolver areaId de cada cita: usar la zona persistida; si falta pero hay
+    // coordenadas, calcularla al vuelo y persistirla (self-healing para citas viejas).
+    const citasConArea = await Promise.all(
+      citas.map(async (cita) => {
+        let areaId = cita.ubicacion?.zona || null;
+
+        if (!areaId && cita.ubicacion?.coordenadas) {
+          areaId = await resolverAreaId(cita.ubicacion.coordenadas);
+          if (areaId) {
+            cita.ubicacion.zona = areaId;
+            await cita.save().catch(err =>
+              console.error('Error persistiendo zona de cita', cita._id, err)
+            );
+          }
+        }
+
+        const obj = cita.toObject();
+        obj.areaId = areaId || null;
+        return obj;
+      })
+    );
+
+    return NextResponse.json(citasConArea);
 
   } catch (error) {
     console.error('Error al obtener citas:', error);
@@ -129,6 +152,9 @@ export async function POST(request) {
         }
       }
     }
+
+    // Resolver la zona (Area) a partir de las coordenadas de la ubicación seleccionada
+    ubicacion.zona = await resolverAreaId(ubicacion.coordenadas);
 
     // Crear la cita
     const nuevaCita = new Cita({

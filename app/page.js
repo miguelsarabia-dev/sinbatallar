@@ -30,11 +30,20 @@ export default function LandingPage() {
         case 'incorporador':
           router.push('/incorporador');
           break;
+        case 'ferretero':
+          router.push('/ferretero');
+          break;
+        case 'tecnico':
+          // El panel de técnico vive en la app móvil, no en la web
+          router.push('/login');
+          break;
         case 'cliente':
         case 'user':
           router.push('/main/servicios-programables');
           break;
         default:
+          // Rol desconocido: no dejar al usuario atascado en "Redirigiendo..."
+          router.push('/login');
           break;
       }
     }

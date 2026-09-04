@@ -12,7 +12,8 @@ import {
   FaShieldAlt, FaCog, FaUsers, FaClipboardList, FaChartBar,
   FaSignOutAlt, FaPlus, FaEdit, FaTrash, FaEye, FaSync, FaUserPlus,
   FaTimes, FaCar, FaBars, FaWarehouse, FaTools, FaFileAlt, FaBan,
-  FaPlay, FaPause, FaMapMarkedAlt, FaMoneyBillWave, FaCalendarAlt, FaStore
+  FaPlay, FaPause, FaMapMarkedAlt, FaMoneyBillWave, FaCalendarAlt, FaStore,
+  FaChevronLeft, FaChevronRight
 } from 'react-icons/fa';
 import CreateServiceForm from './forms/CreateServiceForm';
 import EditServiceForm from './forms/EditServiceForm';

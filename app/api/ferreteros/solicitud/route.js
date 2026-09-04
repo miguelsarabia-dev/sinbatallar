@@ -10,7 +10,7 @@ export async function POST(request) {
   try {
     await connectDB();
 
-    const { nombre, email, password, telefono, nombreNegocio } = await request.json();
+    const { nombre, email, password, telefono, nombreNegocio, direccion, ubicacion } = await request.json();
 
     if (!nombre || !email || !password || !nombreNegocio) {
       return NextResponse.json(
@@ -42,6 +42,10 @@ export async function POST(request) {
       user: user._id,
       nombreNegocio: nombreNegocio.trim(),
       telefono: telefono?.trim() || '',
+      direccion: direccion?.trim() || '',
+      ...(ubicacion?.lat != null && ubicacion?.lng != null
+        ? { ubicacion: { type: 'Point', coordinates: [ubicacion.lng, ubicacion.lat] } }
+        : {}),
       activo: false,
       catalogoActivo: false,
       pendienteAprobacion: true

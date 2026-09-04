@@ -39,7 +39,7 @@ export async function POST(request) {
   try {
     await connectDB();
 
-    const { nombre, email, password, telefono, nombreNegocio } = await request.json();
+    const { nombre, email, password, telefono, nombreNegocio, direccion, ubicacion } = await request.json();
 
     if (!nombre || !email || !password || !nombreNegocio) {
       return NextResponse.json(
@@ -66,7 +66,11 @@ export async function POST(request) {
     const ferretero = await Ferretero.create({
       user: user._id,
       nombreNegocio,
-      telefono
+      telefono,
+      direccion: direccion?.trim() || '',
+      ...(ubicacion?.lat != null && ubicacion?.lng != null
+        ? { ubicacion: { type: 'Point', coordinates: [ubicacion.lng, ubicacion.lat] } }
+        : {})
     });
 
     return NextResponse.json(
