@@ -29,7 +29,8 @@ export default function RegisterContratista() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
+
   // Estados para el mapa
   const [userLocation, setUserLocation] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
@@ -117,6 +118,10 @@ export default function RegisterContratista() {
     }
     if (!selectedLocation) {
       setError('Debes seleccionar una ubicación en el mapa');
+      return;
+    }
+    if (!aceptaTerminos) {
+      setError('Debes aceptar los Términos y Condiciones y las Políticas de Privacidad para continuar');
       return;
     }
 
@@ -458,11 +463,31 @@ export default function RegisterContratista() {
                   </div>
                 </div>
               )}
-              
+
+              {/* Aceptación de términos */}
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={aceptaTerminos}
+                  onChange={e => setAceptaTerminos(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-2 border-gray-300 text-primary focus:ring-primary/20 cursor-pointer"
+                />
+                <span className="text-sm text-gray-600">
+                  He leído y acepto los{' '}
+                  <a href="/terminos-y-condiciones" target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:text-primary-hover underline underline-offset-2">
+                    Términos y Condiciones
+                  </a>{' '}
+                  y las{' '}
+                  <a href="/politicas-de-privacidad" target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:text-primary-hover underline underline-offset-2">
+                    Políticas de Privacidad
+                  </a>
+                </span>
+              </label>
+
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !aceptaTerminos}
                 className="w-full h-14 bg-primary text-white rounded-xl font-semibold hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transition-all duration-200"
               >
                 {loading ? (

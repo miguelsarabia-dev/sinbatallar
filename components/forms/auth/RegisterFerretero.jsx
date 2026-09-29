@@ -17,6 +17,7 @@ export default function RegisterFerretero() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
 
   // Ubicación del negocio (obligatoria para búsqueda de materiales por cercanía)
   const [ubicacion, setUbicacion] = useState(null); // { lat, lng, addressData? }
@@ -38,6 +39,10 @@ export default function RegisterFerretero() {
     }
     if (!ubicacion) {
       setError('Selecciona la ubicación de tu ferretería en el mapa');
+      return;
+    }
+    if (!aceptaTerminos) {
+      setError('Debes aceptar los Términos y Condiciones y las Políticas de Privacidad para continuar');
       return;
     }
 
@@ -270,6 +275,26 @@ export default function RegisterFerretero() {
                 </p>
               </div>
 
+              {/* Aceptación de términos */}
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={aceptaTerminos}
+                  onChange={e => setAceptaTerminos(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-2 border-gray-300 text-primary focus:ring-primary/20 cursor-pointer"
+                />
+                <span className="text-xs text-gray-600">
+                  He leído y acepto los{' '}
+                  <a href="/terminos-y-condiciones" target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:text-primary/80 underline underline-offset-2">
+                    Términos y Condiciones
+                  </a>{' '}
+                  y las{' '}
+                  <a href="/politicas-de-privacidad" target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:text-primary/80 underline underline-offset-2">
+                    Políticas de Privacidad
+                  </a>
+                </span>
+              </label>
+
               {/* Error */}
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-xl p-3">
@@ -280,7 +305,7 @@ export default function RegisterFerretero() {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !aceptaTerminos}
                 className="w-full h-12 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
                 {loading ? (

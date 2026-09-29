@@ -18,7 +18,7 @@ function addCorsHeaders(request, response) {
 
 // Rutas protegidas y públicas
 const protectedRoutes = ['/main', '/admin', '/contratista', '/aperturador', '/incorporador', '/ferretero', '/tecnico'];
-const publicRoutes = ['/', '/login', '/register', '/politicas-de-privacidad', '/api/auth/login', '/api/auth/register'];
+const publicRoutes = ['/', '/login', '/register', '/politicas-de-privacidad', '/terminos-y-condiciones', '/api/auth/login', '/api/auth/register'];
 
 async function verifyTokenMiddleware(token) {
   try {
