@@ -158,9 +158,13 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="w-full px-4 py-6 text-center text-white/70 text-sm space-y-2">
         <p>© 2025 Sin Batallar. Todos los derechos reservados.</p>
-        <p>
+        <p className="flex flex-wrap justify-center gap-x-2 gap-y-1">
           <Link href="/politicas-de-privacidad" className="hover:text-primary transition-colors underline underline-offset-2">
             Políticas de Privacidad
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/terminos-y-condiciones" className="hover:text-primary transition-colors underline underline-offset-2">
+            Términos y Condiciones
           </Link>
         </p>
       </footer>

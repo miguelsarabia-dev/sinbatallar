@@ -18,11 +18,18 @@ export default function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const router = useRouter();
   const { signInWithGoogle } = useAuth();
 
   const handleGoogleSuccess = async (credentialResponse) => {
     setError('');
+
+    if (!aceptaTerminos) {
+      setError('Debes aceptar los Términos y Condiciones y las Políticas de Privacidad para continuar');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -59,6 +66,10 @@ export default function RegisterForm() {
     }
     if (password !== confirmPassword) {
       setError('Las contraseñas no coinciden');
+      return;
+    }
+    if (!aceptaTerminos) {
+      setError('Debes aceptar los Términos y Condiciones y las Políticas de Privacidad para continuar');
       return;
     }
     setLoading(true);
@@ -118,16 +129,38 @@ export default function RegisterForm() {
               <p className="text-muted">Completa tus datos para comenzar</p>
             </div>
 
+            {/* Aceptación de términos (gatea tanto el registro con Google como el manual) */}
+            <label className="flex items-start gap-3 mb-6 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={aceptaTerminos}
+                onChange={e => setAceptaTerminos(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-2 border-neutral text-primary focus:ring-primary/20 cursor-pointer"
+              />
+              <span className="text-sm text-muted">
+                He leído y acepto los{' '}
+                <a href="/terminos-y-condiciones" target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:text-primary-hover underline underline-offset-2">
+                  Términos y Condiciones
+                </a>{' '}
+                y las{' '}
+                <a href="/politicas-de-privacidad" target="_blank" rel="noopener noreferrer" className="text-primary font-medium hover:text-primary-hover underline underline-offset-2">
+                  Políticas de Privacidad
+                </a>
+              </span>
+            </label>
+
             {/* Google Register Button */}
             <div className="flex flex-col items-center mb-6">
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={handleGoogleError}
-                text="signup_with"
-                shape="rectangular"
-                width="100%"
-                locale="es"
-              />
+              <div className={!aceptaTerminos ? 'opacity-50 pointer-events-none' : ''}>
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  text="signup_with"
+                  shape="rectangular"
+                  width="100%"
+                  locale="es"
+                />
+              </div>
               <div className="w-full flex items-center gap-3 mt-4">
                 <div className="flex-1 h-px bg-gray-200"></div>
                 <span className="text-sm text-gray-500">o con tus datos</span>
@@ -288,7 +321,7 @@ export default function RegisterForm() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !aceptaTerminos}
                 className="w-full h-14 bg-primary text-white rounded-xl font-semibold hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transition-all duration-200"
               >
                 {loading ? (
