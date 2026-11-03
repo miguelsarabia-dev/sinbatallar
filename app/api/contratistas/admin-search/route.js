@@ -49,6 +49,7 @@ export async function GET(request) {
 
     // Obtener contratistas con paginación y populate de servicios
     const contratistas = await Contratista.find(query)
+      .select('-password')
       .populate('servicios', 'nombre categoria')
       .populate('incorporador', 'nombre')
       .sort({ createdAt: -1 })

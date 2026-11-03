@@ -4,6 +4,7 @@ import { connectDB } from '@/lib/mongoose';
 import Tecnico from '@/models/Tecnico';
 import User from '@/models/User';
 import { hashPassword } from '@/lib/auth';
+import { requireSession } from '@/lib/session';
 
 // GET /api/tecnicos/[id]
 export async function GET(request, { params }) {
@@ -28,10 +29,15 @@ export async function GET(request, { params }) {
 }
 
 // PUT /api/tecnicos/[id]
-// Body: { nombre?, telefono?, password?, especialidades?, activo? }
+// Body: { nombre?, telefono?, password?, especialidades?, areasCobertura?, activo?, porcentajeGanancia? }
+// Solo el contratista dueño del técnico (o admin); el propio técnico puede editar su perfil
+// pero NO su porcentajeGanancia.
 export async function PUT(request, { params }) {
   try {
     await connectDB();
+
+    const { session, error } = await requireSession(request, ['contratista', 'admin', 'tecnico']);
+    if (error) return error;
 
     const { id } = await params;
     const body = await request.json();
@@ -39,6 +45,23 @@ export async function PUT(request, { params }) {
     const tecnico = await Tecnico.findById(id);
     if (!tecnico) {
       return NextResponse.json({ error: 'Técnico no encontrado' }, { status: 404 });
+    }
+
+    const esDueno = session.role === 'contratista' && tecnico.contratista.toString() === session.id;
+    const esElMismo = session.role === 'tecnico' && tecnico.user.toString() === session.id;
+    if (!esDueno && !esElMismo && session.role !== 'admin') {
+      return NextResponse.json({ error: 'No tienes permiso para editar este técnico' }, { status: 403 });
+    }
+
+    if (body.porcentajeGanancia !== undefined) {
+      if (!esDueno) {
+        return NextResponse.json({ error: 'Solo el contratista dueño puede definir el porcentaje de ganancia' }, { status: 403 });
+      }
+      const porcentaje = Number(body.porcentajeGanancia);
+      if (!Number.isFinite(porcentaje) || porcentaje < 0 || porcentaje > 100) {
+        return NextResponse.json({ error: 'porcentajeGanancia debe ser un número entre 0 y 100' }, { status: 400 });
+      }
+      tecnico.porcentajeGanancia = porcentaje;
     }
 
     // Actualizar campos del perfil User

@@ -45,4 +45,9 @@ contratistaSchema.index({ activo: 1 });
 contratistaSchema.index({ estatus: 1 });
 contratistaSchema.index({ incorporador: 1 });
 
+// El password (hash) nunca sale en una respuesta JSON.
+contratistaSchema.set('toJSON', {
+  transform: (doc, ret) => { delete ret.password; return ret; }
+});
+
 export default mongoose.models.Contratista || mongoose.model('Contratista', contratistaSchema);

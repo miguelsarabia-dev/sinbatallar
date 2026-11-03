@@ -8,6 +8,11 @@ import User from '@/models/User';
 import { enviarNotificacionCambioEstado } from '@/lib/email-service';
 import { uploadMultipleImages } from '@/lib/cloudinary';
 import { resolverAreaId } from '@/lib/geo-utils';
+import Comision from '@/models/Comision';
+import Tecnico from '@/models/Tecnico';
+import { getSessionFromRequest, requireSession } from '@/lib/session';
+import { cambiarEstadoCita } from '@/lib/citas-estado';
+import { getFinancialConfig, gananciaDeCita, resolverCotizacionAceptada } from '@/lib/comisiones';
 
 // GET - Obtener citas
 export async function GET(request) {
@@ -82,6 +87,21 @@ export async function GET(request) {
       .populate({ path: 'tecnico', populate: { path: 'user', select: 'nombre email telefono' } })
       .sort({ createdAt: -1, fechaProgramada: 1 });
 
+    // Ganancia por cita: solo para el contratista dueño, su técnico o el admin (la sesión es opcional).
+    const session = await getSessionFromRequest(request);
+    const verGanancias = ['contratista', 'tecnico', 'admin'].includes(session?.role);
+    const config = verGanancias ? await getFinancialConfig() : null;
+    const cache = {};
+    let tecnicoSesionId = null;
+    const comisionPorCita = {};
+    if (verGanancias) {
+      if (session.role === 'tecnico') {
+        tecnicoSesionId = String((await Tecnico.findOne({ user: session.id }).select('_id'))?._id || '');
+      }
+      const comisiones = await Comision.find({ cita: { $in: citas.map(c => c._id) } });
+      comisiones.forEach(c => { comisionPorCita[String(c.cita)] = c; });
+    }
+
     // Resolver areaId de cada cita: usar la zona persistida; si falta pero hay
     // coordenadas, calcularla al vuelo y persistirla (self-healing para citas viejas).
     const citasConArea = await Promise.all(
@@ -100,6 +120,24 @@ export async function GET(request) {
 
         const obj = cita.toObject();
         obj.areaId = areaId || null;
+
+        const esDueno = session?.role === 'contratista' && String(cita.contratista?._id || '') === session.id;
+        const esSuTecnico = session?.role === 'tecnico' && !!tecnicoSesionId && String(cita.tecnico?._id || '') === tecnicoSesionId;
+        const esAdmin = session?.role === 'admin';
+
+        if (esDueno || esSuTecnico || esAdmin) {
+          const cotizacion = cita.cotizacionAceptada?._id ? cita.cotizacionAceptada : await resolverCotizacionAceptada(cita);
+          const g = cotizacion
+            ? await gananciaDeCita(cita, { comision: comisionPorCita[String(cita._id)], cotizacion, config, cache })
+            : null;
+          if (g) {
+            obj.ganancia = esSuTecnico
+              ? { gananciaTecnico: g.gananciaTecnico, liberacionTecnico: g.liberacionTecnico, estimada: g.estimada }
+              : g;
+          }
+        } else if (obj.tecnico) {
+          delete obj.tecnico.porcentajeGanancia; // el % del técnico es privado del contratista
+        }
         return obj;
       })
     );
@@ -196,44 +234,27 @@ export async function POST(request) {
   }
 }
 
-// PUT - Actualizar estado de cita
+// PUT - Actualizar estado de cita (body: { citaId, estado|nuevoEstado, comentario }).
+// El actor sale del token; userId/userRole del body se ignoran. Mismas reglas que PATCH /citas/:id.
 export async function PUT(request) {
   try {
     await connectDB();
 
-    const data = await request.json();
-    const { citaId, estado, nuevoEstado, comentario, userId, userRole } = data;
+    const { session, error } = await requireSession(request);
+    if (error) return error;
 
-    const estadoFinal = estado || nuevoEstado;
+    const data = await request.json();
+    const { citaId, estado, nuevoEstado, comentario } = data;
 
     const cita = await Cita.findById(citaId);
     if (!cita) {
-      return NextResponse.json(
-        { error: 'Cita no encontrada' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Cita no encontrada' }, { status: 404 });
     }
 
-    // Verificar permisos según el rol
-    if (userRole) {
-      if (userRole === 'cliente' && cita.cliente.toString() !== userId) {
-        return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-      }
-
-      if (userRole === 'contratista' && cita.contratista?.toString() !== userId) {
-        return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-      }
+    const resultado = await cambiarEstadoCita({ cita, estado: estado || nuevoEstado, comentario, session });
+    if (resultado.error) {
+      return NextResponse.json({ error: resultado.error.message }, { status: resultado.error.status });
     }
-
-    // Actualizar estado
-    const estadoAnterior = cita.estado;
-    cita.estado = estadoFinal;
-
-    if (estadoFinal === 'cancelada' && comentario) {
-      cita.motivoCancelacion = comentario;
-    }
-
-    await cita.save();
 
     await cita.populate('cliente', 'nombre email telefono');
     await cita.populate('contratista', 'nombre email telefono');
@@ -241,22 +262,15 @@ export async function PUT(request) {
     await cita.populate('cotizaciones');
     await cita.populate('cotizacionAceptada');
 
-    // Enviar notificaciones
-    if (estadoAnterior !== estadoFinal) {
-      let canceladoPor = null;
-      if (estadoFinal === 'cancelada') {
-        if (userRole === 'cliente') canceladoPor = 'el cliente';
-        else if (userRole === 'contratista') canceladoPor = 'el contratista';
-      }
-
+    if (resultado.cambio) {
       enviarNotificacionCambioEstado({
-        nuevoEstado: estadoFinal,
+        nuevoEstado: cita.estado,
         cita,
         cliente: cita.cliente,
         contratista: cita.contratista,
         servicio: cita.servicio,
         cotizacion: cita.cotizacionAceptada,
-        canceladoPor
+        canceladoPor: resultado.canceladoPor
       }).catch(err => console.error('Error enviando emails:', err));
     }
 

@@ -56,6 +56,24 @@ const citaSchema = new mongoose.Schema({
   // Técnico asignado por el contratista
   tecnico: { type: mongoose.Schema.Types.ObjectId, ref: 'Tecnico', default: null },
 
+  // Confirmaciones de cierre
+  tecnicoMarcoCompletado: { type: Boolean, default: false },
+  fechaTecnicoCompletado: { type: Date, default: null },
+  clienteConfirmo: { type: Boolean, default: false },
+  fechaClienteConfirmo: { type: Date, default: null },
+
+  // Reembolso pendiente cuando se cancela una cita con pago ya verificado
+  reembolso: {
+    estado: { type: String, enum: ['pendiente', 'resuelto'] },
+    monto: { type: Number, min: 0 },
+    motivo: { type: String, trim: true },
+    canceladoPor: { type: String, trim: true }, // 'contratista' | 'admin' | 'cliente'
+    fecha: { type: Date },
+    nota: { type: String, trim: true },
+    fechaResolucion: { type: Date },
+    resueltoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  },
+
   // Flags de calificación
   calificadoContratista: { type: Boolean, default: false },
 

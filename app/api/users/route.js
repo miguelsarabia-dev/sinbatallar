@@ -4,6 +4,15 @@ import Incorporador from '@/models/Incorporador'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 import { enviarEmailBienvenidaCliente } from '@/lib/email-service'
+import { getSessionFromRequest } from '@/lib/session'
+
+// Roles que solo un admin puede crear/asignar (el registro público es solo para clientes).
+const ROLES_RESTRINGIDOS = ['aperturador', 'incorporador', 'admin'];
+
+async function esAdminLaPeticion(request) {
+    const session = await getSessionFromRequest(request);
+    return session?.role === 'admin';
+}
 
 // Garantiza que un usuario con rol incorporador tenga su doc en la colección
 // incorporadores. Idempotente: no duplica si ya existe. El registro de
@@ -42,29 +51,47 @@ function validateUserData(data, isRegister = false) {
     return errors;
 }
 
-// GET: Listar todos los usuarios o uno por ID
+// GET: Listar usuarios (admin) o leer uno por id / email / teléfono.
+// Requiere token. Un usuario solo puede leerse a sí mismo; el admin puede leer a cualquiera.
+// Nunca devuelve el password.
 export async function GET(request) {
     await connectDB();
+
+    const session = await getSessionFromRequest(request);
+    if (!session) {
+        return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    }
+    const admin = session.role === 'admin';
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     try {
         if (id) {
             let user;
             if (id.includes('@')) {
-                user = await User.findOne({ email: id });
+                user = await User.findOne({ email: id.toLowerCase() }).select('-password');
             } else if (/^[0-9a-fA-F]{24}$/.test(id)) {
-                user = await User.findById(id);
+                user = await User.findById(id).select('-password');
             } else {
-                user = await User.findOne({ telefono: id });
+                user = await User.findOne({ telefono: id }).select('-password');
+            }
+
+            const esElMismo = !!user && (String(user._id) === session.id || (!!session.email && user.email === session.email.toLowerCase()));
+            if (!admin && !esElMismo) {
+                // Mismo 403 exista o no el usuario: no se revela nada a quien no es el dueño.
+                return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
             }
             if (!user) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
             return NextResponse.json(user);
-        } else {
-            const users = await User.find({});
-            return NextResponse.json(users);
         }
+
+        if (!admin) {
+            return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+        }
+        const users = await User.find({}).select('-password');
+        return NextResponse.json(users);
     } catch (error) {
-        return NextResponse.json({ error: 'Error al obtener usuario(s)', details: error.message }, { status: 400 });
+        return NextResponse.json({ error: 'Error al obtener usuario(s)' }, { status: 400 });
     }
 }
 
@@ -107,6 +134,10 @@ export async function POST(request) {
             const errors = validateUserData({ email, password, nombre, telefono, role }, true);
             if (errors.length > 0) {
                 return NextResponse.json({ error: 'Datos inválidos', details: errors }, { status: 400 });
+            }
+
+            if (ROLES_RESTRINGIDOS.includes(role) && !(await esAdminLaPeticion(request))) {
+                return NextResponse.json({ error: `Solo un administrador puede crear usuarios con rol ${role}` }, { status: 403 });
             }
 
             const existingEmail = await User.findOne({ email });
@@ -217,6 +248,10 @@ export async function PUT(request) {
     }
 
     const userId = data._id || data.id;
+
+    if (data.role && ROLES_RESTRINGIDOS.includes(data.role) && !(await esAdminLaPeticion(request))) {
+        return NextResponse.json({ error: `Solo un administrador puede asignar el rol ${data.role}` }, { status: 403 });
+    }
 
     // Validación básica
     if (data.role && !['cliente', 'contratista', 'admin', 'aperturador', 'incorporador'].includes(data.role)) {

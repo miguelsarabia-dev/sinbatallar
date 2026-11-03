@@ -93,30 +93,12 @@ export default function LoginForm() {
           setError('Error en el inicio de sesión');
         }
       } else {
-        // Lógica para usuarios
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) {
-          console.log('📞 Buscando usuario por teléfono:', identifier);
-          try {
-            const res = await fetch('/api/users?id=' + encodeURIComponent(identifier));
-            if (res.ok) {
-              const user = await res.json();
-              email = user.email;
-              console.log('✅ Email encontrado:', email);
-            } else {
-              setError('Usuario no encontrado');
-              setLoading(false);
-              return;
-            }
-          } catch {
-            setError('Error de conexión');
-            setLoading(false);
-            return;
-          }
-        }
+        // Lógica para usuarios: email o teléfono de 10 dígitos (el servidor resuelve la cuenta)
+        const esEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
 
-        console.log('👤 Login como usuario:', email);
+        console.log('👤 Login como usuario');
         const result = await signIn({
-          email,
+          ...(esEmail ? { email: identifier } : { telefono: identifier }),
           password,
           userType: 'usuario'
         });

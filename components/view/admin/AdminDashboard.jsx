@@ -20,6 +20,7 @@ import EditServiceForm from './forms/EditServiceForm';
 import UsersManager from './users/UsersManager';
 import ContratistasManager from './contratistas/ContratistasManager';
 import FinanzasDashboard from './finanzas/FinanzasDashboard';
+import PagosAdmin from './pagos/PagosAdmin';
 import FerretersManager from './ferreteros/FerretersManager';
 
 export default function AdminDashboard() {
@@ -1544,6 +1545,12 @@ export default function AdminDashboard() {
       count: null
     },
     {
+      key: 'pagos',
+      label: 'Pagos y reembolsos',
+      icon: <FaMoneyBillWave />,
+      count: null
+    },
+    {
       key: 'servicios',
       label: 'Servicios',
       icon: <FaTools />,
@@ -1780,6 +1787,9 @@ export default function AdminDashboard() {
 
       case 'finanzas':
         return <FinanzasDashboard />;
+
+      case 'pagos':
+        return <PagosAdmin />;
 
       case 'servicios':
         return (

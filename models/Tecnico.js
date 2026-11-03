@@ -23,6 +23,8 @@ const tecnicoSchema = new mongoose.Schema({
     ref: 'Area'
   }],
   especialidades: [{ type: String, trim: true }],
+  // % de la parte de mano de obra del contratista que se lleva este técnico (lo define el contratista)
+  porcentajeGanancia: { type: Number, default: 0, min: 0, max: 100 },
   estadisticas: {
     serviciosRealizados: { type: Number, default: 0 },
     calificacionPromedio: { type: Number, default: 0, min: 0, max: 5 }

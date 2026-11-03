@@ -1,30 +1,31 @@
 // app/api/cotizaciones/[id]/verificar-pago/route.js
-// El contratista verifica manualmente el comprobante de transferencia que el
-// cliente le envió por WhatsApp (anticipo o saldo). Cuando el SALDO queda
-// verificado, el ciclo de pago está completo con certeza y se cierra el
-// servicio (cita -> completada, pagado: true).
+// El contratista dueño (o un admin), identificado por token, verifica o rechaza el pago
+// declarado por el cliente: tipo 'anticipo' | 'saldo' | 'total'.
+//  - anticipo / total verificados: la cita pasa a en_progreso en la misma operación.
+//  - saldo verificado: se cierra el servicio (completada, pagado) y se crea la comisión.
+//  - total verificado: el cierre y la comisión ocurren cuando el cliente confirma el trabajo.
+//  - verificado:false + motivo: rechaza el comprobante vigente; el cliente puede subir otro.
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Cotizacion from '@/models/Cotizacion';
 import Cita from '@/models/Cita';
-import Comision from '@/models/Comision';
-import Contratista from '@/models/Contratista';
-import Area from '@/models/Area';
-import { enviarEmailsCitaCompletada } from '@/lib/email-service';
+import Comprobante from '@/models/Comprobante';
+import { enviarNotificacionCambioEstado, enviarEmailComprobanteRechazado } from '@/lib/email-service';
+import { requireSession } from '@/lib/session';
+import { cerrarServicioSiCorresponde } from '@/lib/comisiones';
 
-const TIPOS_VALIDOS = ['anticipo', 'saldo'];
+const TIPOS_VALIDOS = ['anticipo', 'saldo', 'total'];
 
 export async function PATCH(request, { params }) {
   try {
     await connectDB();
 
-    const { id } = await params;
-    const body = await request.json();
-    const { contratistaId, tipo, verificado = true } = body;
+    const { session, error } = await requireSession(request, ['contratista', 'admin']);
+    if (error) return error;
 
-    if (!contratistaId) {
-      return NextResponse.json({ error: 'contratistaId es requerido' }, { status: 400 });
-    }
+    const { id } = await params;
+    const { tipo, verificado = true, motivo } = await request.json();
+
     if (!TIPOS_VALIDOS.includes(tipo)) {
       return NextResponse.json(
         { error: `tipo no válido. Debe ser: ${TIPOS_VALIDOS.join(' | ')}` },
@@ -32,78 +33,128 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    const cotizacion = await Cotizacion.findById(id).populate('cita');
+    const cotizacion = await Cotizacion.findById(id);
     if (!cotizacion) {
       return NextResponse.json({ error: 'Cotización no encontrada' }, { status: 404 });
     }
 
-    // Solo el contratista dueño puede verificar el pago.
-    if (cotizacion.contratista.toString() !== contratistaId) {
+    // Solo el contratista dueño (según el token) o un admin.
+    if (session.role === 'contratista' && cotizacion.contratista.toString() !== session.id) {
       return NextResponse.json(
         { error: 'No tienes permiso para verificar el pago de esta cotización' },
         { status: 403 }
       );
     }
 
-    const parte = cotizacion[tipo];
+    const esTotal = cotizacion.modalidadPago === 'total';
+    if ((tipo === 'total') !== esTotal) {
+      return NextResponse.json(
+        { error: esTotal ? "Esta cotización es de pago total: usa tipo 'total'" : "Esta cotización es de anticipo + saldo: usa tipo 'anticipo' o 'saldo'" },
+        { status: 400 }
+      );
+    }
 
-    // No se puede verificar algo que el cliente aún no declaró.
-    if (verificado && !parte.declarado) {
+    const parte = tipo === 'total' ? cotizacion.pagoUnico : cotizacion[tipo];
+    const cita = await Cita.findById(cotizacion.cita);
+
+    // ── Rechazo / desmarcado ─────────────────────────────────────────────
+    if (!verificado) {
+      const motivoLimpio = (motivo || '').trim();
+      if (!motivoLimpio) {
+        return NextResponse.json({ error: 'Se requiere un motivo para rechazar el comprobante' }, { status: 400 });
+      }
+      if (cita?.pagado) {
+        return NextResponse.json({ error: 'El servicio ya está cerrado y pagado' }, { status: 400 });
+      }
+
+      parte.verificado = false;
+      parte.fechaVerificacion = null;
+      parte.declarado = false;
+      parte.fechaDeclaracion = null;
+      await cotizacion.save();
+
+      await Comprobante.updateMany(
+        { cotizacion: cotizacion._id, tipo, estado: 'vigente' },
+        { estado: 'rechazado', motivoRechazo: motivoLimpio, verificado: false, revisadoPor: session.id }
+      );
+
+      if (cita) {
+        const citaPoblada = await Cita.findById(cita._id)
+          .populate('cliente', 'nombre email')
+          .populate('servicio', 'nombre');
+        enviarEmailComprobanteRechazado({
+          cliente: citaPoblada.cliente, servicio: citaPoblada.servicio, tipo, motivo: motivoLimpio
+        }).catch(err => console.error('Error enviando email de rechazo:', err));
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Comprobante de ${tipo} rechazado.`,
+        cotizacion,
+        citaCerrada: false
+      });
+    }
+
+    // ── Verificación ─────────────────────────────────────────────────────
+    if (!parte.declarado) {
       return NextResponse.json(
         { error: `El cliente aún no ha declarado el pago de ${tipo}` },
         { status: 400 }
       );
     }
+    if (tipo === 'saldo' && !cotizacion.anticipo.verificado) {
+      return NextResponse.json({ error: 'Primero debe verificarse el anticipo' }, { status: 400 });
+    }
 
-    parte.verificado = !!verificado;
-    parte.fechaVerificacion = verificado ? new Date() : null;
+    parte.verificado = true;
+    parte.fechaVerificacion = new Date();
     await cotizacion.save();
 
-    // ── Cierre del ciclo: saldo verificado -> servicio completado ─────────
+    await Comprobante.updateMany(
+      { cotizacion: cotizacion._id, tipo, estado: 'vigente' },
+      { verificado: true, fechaVerificacion: new Date(), revisadoPor: session.id }
+    );
+
+    // anticipo / total verificados -> la cita pasa a en_progreso en la misma operación
+    let citaEnProgreso = false;
+    if ((tipo === 'anticipo' || tipo === 'total') && cita?.estado === 'verificando_pago') {
+      cita.estado = 'en_progreso';
+      cita.historial.push({
+        estado: 'en_progreso',
+        comentario: tipo === 'total'
+          ? 'Pago total verificado por el contratista. Servicio en progreso.'
+          : 'Anticipo verificado por el contratista. Servicio en progreso.',
+        fecha: new Date()
+      });
+      await cita.save({ validateModifiedOnly: true });
+      citaEnProgreso = true;
+
+      const citaPoblada = await Cita.findById(cita._id)
+        .populate('cliente', 'nombre email telefono')
+        .populate('contratista', 'nombre email telefono')
+        .populate('servicio', 'nombre descripcion');
+      enviarNotificacionCambioEstado({
+        nuevoEstado: 'en_progreso',
+        cita: citaPoblada,
+        cliente: citaPoblada.cliente,
+        contratista: citaPoblada.contratista,
+        servicio: citaPoblada.servicio,
+        cotizacion
+      }).catch(err => console.error('Error enviando email en_progreso:', err));
+    }
+
+    // saldo verificado (o pago total ya confirmado por el cliente) -> cierre + comisión
     let citaCerrada = false;
-
-    if (tipo === 'saldo' && verificado && cotizacion.cita) {
-      const cita = await Cita.findById(cotizacion.cita._id || cotizacion.cita);
-      if (cita && cita.estado !== 'completada' && cita.estado !== 'cancelada') {
-        cita.estado = 'completada';
-        cita.pagado = true;
-        cita.metodoPago = 'transferencia';
-        const now = new Date();
-        cita.horaFin = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-        cita.historial.push({
-          estado: 'completada',
-          comentario: 'Saldo verificado por el contratista. Pago completo confirmado.',
-          fecha: new Date()
-        });
-        await cita.save({ validateModifiedOnly: true });
-        citaCerrada = true;
-
-        await crearComisionSiNoExiste(cita, cotizacion);
-
-        // Emails de servicio completado (no bloqueante)
-        const citaPoblada = await Cita.findById(cita._id)
-          .populate('cliente', 'nombre email telefono')
-          .populate('contratista', 'nombre email telefono')
-          .populate('servicio', 'nombre descripcion');
-        enviarEmailsCitaCompletada({
-          cita: citaPoblada,
-          cliente: citaPoblada.cliente,
-          contratista: citaPoblada.contratista,
-          servicio: citaPoblada.servicio,
-          cotizacion
-        }).catch(err => console.error('Error enviando emails cita completada:', err));
-      } else if (cita?.estado === 'completada' && !cita.pagado) {
-        // La cita ya estaba cerrada por otro flujo; garantizar el flag de pago.
-        cita.pagado = true;
-        await cita.save({ validateModifiedOnly: true });
-      }
+    if (cita && (tipo === 'saldo' || tipo === 'total')) {
+      ({ cerrada: citaCerrada } = await cerrarServicioSiCorresponde(cita._id));
     }
 
     return NextResponse.json({
       success: true,
-      message: `Pago de ${tipo} ${verificado ? 'verificado' : 'marcado como no verificado'}.`,
+      message: `Pago de ${tipo} verificado.`,
       cotizacion,
-      citaCerrada
+      citaCerrada,
+      citaEnProgreso
     });
   } catch (error) {
     console.error('Error al verificar pago:', error);
@@ -111,53 +162,5 @@ export async function PATCH(request, { params }) {
       { error: 'Error interno del servidor', details: error.message },
       { status: 500 }
     );
-  }
-}
-
-/**
- * Crea la Comisión para la cita si aún no existe (idempotente).
- * Reproduce la distribución usada por completar/finalizar.
- */
-async function crearComisionSiNoExiste(cita, cotizacion) {
-  const comisionExistente = await Comision.findOne({ cita: cita._id });
-  if (comisionExistente) return;
-
-  const costoMateriales = cotizacion.costoMateriales || cotizacion.materiales?.reduce((total, mat) => {
-    return total + (Number(mat.total) || (Number(mat.cantidad) * Number(mat.precio)) || 0);
-  }, 0) || 0;
-
-  const contratista = await Contratista.findById(cotizacion.contratista);
-
-  let area = null;
-  if (cita.ubicacion?.zona) {
-    area = await Area.findById(cita.ubicacion.zona);
-  }
-
-  const distribucion = {
-    plataforma: { porcentaje: 15 },
-    contratista: { id: cotizacion.contratista, porcentaje: 85 }
-  };
-  if (area?.aperturador) {
-    distribucion.aperturador = { id: area.aperturador, porcentaje: 2 };
-  }
-  if (contratista?.incorporador) {
-    distribucion.incorporador = { id: contratista.incorporador, porcentaje: 3 };
-  }
-
-  try {
-    const comision = new Comision({
-      cita: cita._id,
-      cotizacion: cotizacion._id,
-      totalServicio: cotizacion.total,
-      subtotal: cotizacion.subtotal || (cotizacion.manoDeObra + costoMateriales),
-      iva: cotizacion.iva || Math.round(((cotizacion.manoDeObra + costoMateriales) * 16) / 100),
-      costoMateriales,
-      manoDeObra: cotizacion.manoDeObra || 0,
-      distribucion,
-      estadoPago: 'disponible'
-    });
-    await comision.save();
-  } catch (error) {
-    console.error('Error creando comision en verificar-pago:', error);
   }
 }

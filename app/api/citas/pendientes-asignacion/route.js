@@ -7,13 +7,19 @@ import { connectDB } from '@/lib/mongoose';
 import Cita from '@/models/Cita';
 import Contratista from '@/models/Contratista';
 import Area from '@/models/Area';
+import { requireSession } from '@/lib/session';
+import { idSeguro } from '@/lib/sanitize';
 
 export async function GET(request) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['contratista', 'admin']);
+    if (error) return error;
+
+    // El contratista solo ve su propio pool; el admin puede indicar contratistaId.
     const { searchParams } = new URL(request.url);
-    const contratistaId = searchParams.get('contratistaId');
+    const contratistaId = session.role === 'contratista' ? session.id : idSeguro(searchParams.get('contratistaId'));
 
     if (!contratistaId) {
       return NextResponse.json(

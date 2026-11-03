@@ -13,13 +13,21 @@ export async function GET(request) {
     const clienteId = searchParams.get('clienteId');
     const contratistaId = searchParams.get('contratistaId');
     const estado = searchParams.get('estado');
+    const citaId = searchParams.get('citaId');
 
     let filter = {};
+
+    if (citaId) {
+      filter.cita = citaId;
+    }
 
     if (clienteId) {
       const Cita = (await import('@/models/Cita')).default;
       const citas = await Cita.find({ cliente: clienteId }).select('_id');
-      filter.cita = { $in: citas.map(c => c._id) };
+      const idsCliente = citas.map(c => c._id.toString());
+      filter.cita = citaId
+        ? { $in: idsCliente.includes(citaId) ? [citaId] : [] }
+        : { $in: citas.map(c => c._id) };
       // El cliente nunca ve cotizaciones en revisión interna del contratista/técnico
       filter.estado = { $nin: ['pendiente', 'pendiente_contratista', 'rechazada_contratista'] };
     }

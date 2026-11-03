@@ -9,20 +9,17 @@ import Contratista from '@/models/Contratista';
 import Servicio from '@/models/Servicio';
 import User from '@/models/User';
 import { enviarNotificacionCambioEstado } from '@/lib/email-service';
+import { requireSession } from '@/lib/session';
 
 export async function POST(request, { params }) {
   try {
     await connectDB();
 
-    const { id } = await params;
-    const { contratistaId } = await request.json();
+    const { session, error } = await requireSession(request, ['contratista']);
+    if (error) return error;
 
-    if (!contratistaId) {
-      return NextResponse.json(
-        { error: 'contratistaId requerido' },
-        { status: 400 }
-      );
-    }
+    const { id } = await params;
+    const contratistaId = session.id; // del token; el body se ignora
 
     const contratista = await Contratista.findById(contratistaId);
     if (!contratista || !contratista.activo) {
