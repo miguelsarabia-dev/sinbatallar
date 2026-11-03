@@ -37,6 +37,10 @@ export async function GET(request) {
     }
 
     // Buscar áreas donde está asignado el contratista
+    if (!contratista.aprobado) {
+      return NextResponse.json({ error: 'Tu cuenta aún está en revisión' }, { status: 403 });
+    }
+
     const areas = await Area.find({
       contratistas: contratistaId,
       activo: true

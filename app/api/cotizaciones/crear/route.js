@@ -69,6 +69,9 @@ export async function POST(request) {
     }
 
     const contratista = await Contratista.findById(contratistaId);
+    if (contratista && !contratista.aprobado) {
+      return NextResponse.json({ error: 'Tu cuenta aún está en revisión' }, { status: 403 });
+    }
     if (!contratista) {
       return NextResponse.json(
         { error: 'Contratista no encontrado' },

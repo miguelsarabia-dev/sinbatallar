@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 import { requireSession } from '@/lib/session'
 import { esObjectId, pick } from '@/lib/sanitize'
-import { relacionCon, camposPara, SELECT_PUBLICO } from '@/lib/contratista-acceso'
+import { relacionCon, camposPara, aplicarReglasAprobacion, SELECT_PUBLICO } from '@/lib/contratista-acceso'
 
 // GET: Obtener un contratista específico por ID
 export async function GET(request, { params }) {

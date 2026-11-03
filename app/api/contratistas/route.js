@@ -6,7 +6,7 @@ import bcrypt from 'bcrypt'
 import { enviarEmailBienvenidaContratista } from '@/lib/email-service'
 import { requireSession, getSessionFromRequest } from '@/lib/session'
 import { esObjectId, pick, soloTexto } from '@/lib/sanitize'
-import { relacionCon, camposPara, incorporadorDe, SELECT_PUBLICO } from '@/lib/contratista-acceso'
+import { relacionCon, camposPara, incorporadorDe, aplicarReglasAprobacion, SELECT_PUBLICO } from '@/lib/contratista-acceso'
 
 // GET: Listar todos los contratistas o uno por ID
 // Query: ?id=  ?incorporadorId=  ?sinIncorporador=true  ?estatus=pendiente|activo|rechazado|suspendido
@@ -121,8 +121,10 @@ export async function POST(req) {
     notas: notas?.trim() || '',
     password: passwordTemporal,
     incorporador: incorporador._id,
-    activo: !!autorizadoActivar,
-    estatus: 'pendiente'
+    // Aprobación: solo la da un admin (alta directa). Si lo crea el incorporador queda en revisión hasta aprobarlo.
+    aprobado: session?.role === 'admin',
+    activo: session?.role === 'admin',
+    estatus: 'pendiente',
   });
 
   enviarEmailBienvenidaContratista({ email: nuevoContratista.email, nombre: nuevoContratista.nombre })
@@ -165,7 +167,10 @@ export async function PUT(req) {
     // Solo admin, el propio contratista o su incorporador, cada uno con sus campos permitidos
     const relacion = await relacionCon(session, contratistaActual);
     if (!relacion) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-    const data = pick(body, camposPara(relacion));
+    let data = pick(body, camposPara(relacion));
+    const reglas = aplicarReglasAprobacion(relacion, contratistaActual, data);
+    if (reglas.error) return NextResponse.json({ error: reglas.error.message }, { status: reglas.error.status });
+    data = reglas.data;
     data._id = body._id;
 
     // Si se incluye password, hashearlo

@@ -22,10 +22,10 @@ export async function POST(request, { params }) {
     const contratistaId = session.id; // del token; el body se ignora
 
     const contratista = await Contratista.findById(contratistaId);
-    if (!contratista || !contratista.activo) {
+    if (!contratista || !contratista.aprobado || !contratista.activo) {
       return NextResponse.json(
-        { error: 'Contratista no encontrado o inactivo' },
-        { status: 404 }
+        { error: contratista && !contratista.aprobado ? 'Tu cuenta aún está en revisión' : 'Contratista no disponible' },
+        { status: contratista && !contratista.aprobado ? 403 : 404 }
       );
     }
 

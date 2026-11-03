@@ -49,6 +49,7 @@ export async function POST(request) {
 
     // Asignar el incorporador y activar al contratista
     contratista.incorporador = incorporador._id;
+    contratista.aprobado = true;
     contratista.activo = true;
     contratista.estatus = 'activo';
     await contratista.save();

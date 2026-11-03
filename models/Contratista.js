@@ -26,6 +26,11 @@ const contratistaSchema = new mongoose.Schema({
     ref: 'Area',
     default: null
   },
+  // aprobado: la cuenta fue validada (admin o su incorporador). Hasta entonces no recibe solicitudes.
+  aprobado: { type: Boolean, default: false },
+  // estatus de la incorporación (sin default: las cuentas anteriores no lo tienen)
+  estatus: { type: String, enum: ['pendiente', 'activo', 'rechazado', 'suspendido'] },
+  // activo: DISPONIBILIDAD que maneja el propio contratista (solo si aprobado). Si se pausa, se reactiva sola a las 48 h.
   activo: { type: Boolean, default: false },
   inactivoDesde: { type: Date, default: null },
   informacionPago: {

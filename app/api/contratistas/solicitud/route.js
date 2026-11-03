@@ -63,6 +63,7 @@ export async function POST(request) {
         direccion: ubicacion.direccion || direccion.trim()
       },
       incorporador: null,
+      aprobado: false,
       activo: false,
       estatus: 'pendiente'
     });

@@ -104,7 +104,9 @@ export async function POST(request) {
         nombre: cuenta.nombre,
         telefono: cuenta.telefono,
         role: 'contratista',
-        userType: 'contratista'
+        userType: 'contratista',
+        // false = cuenta en revisión: el login responde 200 para que la app lo muestre, pero no recibe solicitudes
+        aprobado: !!cuenta.aprobado
       };
     } else if (userType === 'tecnico') {
       const perfilTecnico = await Tecnico.findOne({ user: cuenta._id })
