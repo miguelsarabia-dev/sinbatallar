@@ -129,6 +129,14 @@ export async function POST(request) {
             }
         }
 
+        // El login vive en POST /api/auth/login (con límite de intentos); aquí solo se registra.
+        if (!isRegister) {
+            return NextResponse.json({ error: 'Para iniciar sesión usa /api/auth/login' }, { status: 400 });
+        }
+        if (typeof email !== 'string' || typeof password !== 'string') {
+            return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+        }
+
         // Validación
         if (isRegister) {
             const errors = validateUserData({ email, password, nombre, telefono, role }, true);
@@ -136,9 +144,12 @@ export async function POST(request) {
                 return NextResponse.json({ error: 'Datos inválidos', details: errors }, { status: 400 });
             }
 
-            if (ROLES_RESTRINGIDOS.includes(role) && !(await esAdminLaPeticion(request))) {
+            const esAdminQuienCrea = await esAdminLaPeticion(request);
+            if (ROLES_RESTRINGIDOS.includes(role) && !esAdminQuienCrea) {
                 return NextResponse.json({ error: `Solo un administrador puede crear usuarios con rol ${role}` }, { status: 403 });
             }
+            // Registro público: siempre cliente (cualquier otro rol lo asigna un admin)
+            if (!esAdminQuienCrea) role = 'cliente';
 
             const existingEmail = await User.findOne({ email });
             if (existingEmail) {
@@ -208,59 +219,76 @@ export async function POST(request) {
     } catch (error) {
         console.error('Error:', error);
         return NextResponse.json(
-            { error: 'Error del Servidor', details: error.message },
+            { error: 'Error del Servidor' },
             { status: 500 }
         );
     }
 }
 
-// PUT: Actualizar usuario existente
+// PUT: Actualizar usuario. Solo uno mismo (campos de perfil) o un admin (además rol).
+const CAMPOS_PERFIL = ['nombre', 'telefono', 'email', 'password', 'fotoUrl', 'fotoPublicId', 'identificacion', 'direcciones'];
+
 export async function PUT(request) {
     await connectDB();
+
+    const session = await getSessionFromRequest(request);
+    if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    const admin = session.role === 'admin';
+
     const contentType = request.headers.get('content-type') || '';
     let data = {};
 
     if (contentType.includes('application/json')) {
         data = await request.json();
-        if (data.password) {
-            data.password = await bcrypt.hash(data.password, 10);
-        }
     } else if (contentType.includes('multipart/form-data')) {
         const formData = await request.formData();
         data._id = formData.get('_id');
         data.nombre = formData.get('nombre');
         data.telefono = formData.get('telefono');
         data.email = formData.get('email');
-
-        const foto = formData.get('foto');
-        if (foto && typeof foto.arrayBuffer === 'function') {
-            const arrayBuffer = await foto.arrayBuffer();
-            data.foto = Buffer.from(arrayBuffer);
-        }
-
-        if (formData.get('password')) {
-            data.password = await bcrypt.hash(formData.get('password'), 10);
-        }
-    }
-
-    if (!data._id && !data.id) {
-        return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
+        if (formData.get('password')) data.password = formData.get('password');
     }
 
     const userId = data._id || data.id;
-
-    if (data.role && ROLES_RESTRINGIDOS.includes(data.role) && !(await esAdminLaPeticion(request))) {
-        return NextResponse.json({ error: `Solo un administrador puede asignar el rol ${data.role}` }, { status: 403 });
+    if (typeof userId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(userId)) {
+        return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
     }
 
-    // Validación básica
-    if (data.role && !['cliente', 'contratista', 'admin', 'aperturador', 'incorporador'].includes(data.role)) {
-        return NextResponse.json({ error: 'Rol inválido' }, { status: 400 });
+    // Solo el propio usuario o admin (un contratista no es un User: usa /api/contratistas)
+    if (!admin && userId !== session.id) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
+
+    if (data.role !== undefined) {
+        if (!admin) {
+            return NextResponse.json({ error: 'Solo un administrador puede cambiar el rol' }, { status: 403 });
+        }
+        if (typeof data.role !== 'string' || !['cliente', 'admin', 'aperturador', 'incorporador', 'ferretero', 'tecnico'].includes(data.role)) {
+            return NextResponse.json({ error: 'Rol inválido' }, { status: 400 });
+        }
+    }
+
+    // Solo campos permitidos (nada de googleId, _id, etc.), y solo valores string/arreglos simples
+    const update = {};
+    for (const k of CAMPOS_PERFIL) {
+        if (data[k] === undefined) continue;
+        if (k === 'direcciones') { if (Array.isArray(data[k])) update[k] = data[k]; continue; }
+        if (typeof data[k] !== 'string') {
+            return NextResponse.json({ error: `Valor inválido en ${k}` }, { status: 400 });
+        }
+        update[k] = data[k];
+    }
+    if (admin && data.role) update.role = data.role;
+    if (update.password) {
+        if (update.password.length < 6) {
+            return NextResponse.json({ error: 'La contraseña debe tener al menos 6 caracteres' }, { status: 400 });
+        }
+        update.password = await bcrypt.hash(update.password, 10);
+    }
+    if (update.email) update.email = update.email.toLowerCase().trim();
 
     try {
-        const { _id, id, ...rest } = data;
-        const user = await User.findByIdAndUpdate(userId, rest, { new: true });
+        const user = await User.findByIdAndUpdate(userId, update, { new: true, runValidators: true });
         if (!user) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
 
         // Si el usuario quedó como incorporador, garantizar su doc para no
@@ -271,21 +299,24 @@ export async function PUT(request) {
 
         return NextResponse.json(user);
     } catch (error) {
-        return NextResponse.json({ error: 'Error al actualizar usuario', details: error.message }, { status: 400 });
+        return NextResponse.json({ error: 'Error al actualizar usuario' }, { status: 400 });
     }
 }
 
 // DELETE: Eliminar usuario
 export async function DELETE(request) {
     await connectDB();
+    if (!(await esAdminLaPeticion(request))) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
+    if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
     try {
         const deleted = await User.findByIdAndDelete(id);
         if (!deleted) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
         return NextResponse.json({ message: 'Eliminado' });
     } catch (error) {
-        return NextResponse.json({ error: 'Error al eliminar usuario', details: error.message }, { status: 400 });
+        return NextResponse.json({ error: 'Error al eliminar usuario' }, { status: 400 });
     }
 }

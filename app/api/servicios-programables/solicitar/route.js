@@ -1,5 +1,6 @@
 // app/api/servicios-programables/solicitar/route.js
 import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
 import { connectDB } from '@/lib/mongoose';
 import Cita from '@/models/Cita';
 import Contratista from '@/models/Contratista';
@@ -13,10 +14,13 @@ export async function POST(request) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['cliente']);
+    if (error) return error;
+
     const formData = await request.formData();
 
     // Extraer datos del FormData
-    const clienteId = formData.get('clienteId');
+    const clienteId = session.id; // del token; el campo del formulario se ignora
     const servicioId = formData.get('servicioId');
     const contratistaId = formData.get('contratistaId');
     const descripcionProblema = formData.get('descripcionProblema');

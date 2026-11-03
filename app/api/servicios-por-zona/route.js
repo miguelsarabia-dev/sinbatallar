@@ -31,6 +31,7 @@ export async function GET(request) {
     }).populate({
       path: 'contratistas',
       match: { activo: true }, // Solo contratistas activos
+      select: '-password -curp -informacionPago -notas', // nunca datos sensibles
       populate: {
         path: 'servicios',
         model: 'Servicio'

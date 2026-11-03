@@ -9,6 +9,7 @@ import { enviarNotificacionCambioEstado } from '@/lib/email-service';
 import { uploadMultipleImages } from '@/lib/cloudinary';
 import { resolverAreaId } from '@/lib/geo-utils';
 import Comision from '@/models/Comision';
+import { idSeguro } from '@/lib/sanitize';
 import Tecnico from '@/models/Tecnico';
 import { getSessionFromRequest, requireSession } from '@/lib/session';
 import { cambiarEstadoCita } from '@/lib/citas-estado';
@@ -19,26 +20,29 @@ export async function GET(request) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['cliente', 'contratista', 'tecnico', 'admin']);
+    if (error) return error;
+
     const { searchParams } = new URL(request.url);
-    const clienteId = searchParams.get('clienteId');
-    const contratistaId = searchParams.get('contratistaId');
-    const tecnicoId = searchParams.get('tecnicoId');
     const estado = searchParams.get('estado');
     const fecha = searchParams.get('fecha');
     const activa = searchParams.get('activa');
 
+    // El alcance sale del token; los ids de la query solo los respeta el admin.
     let filter = {};
-
-    if (clienteId) {
-      filter.cliente = clienteId;
-    }
-
-    if (contratistaId) {
-      filter.contratista = contratistaId;
-    }
-
-    if (tecnicoId) {
-      filter.tecnico = tecnicoId;
+    let clienteId = null;
+    if (session.role === 'cliente') {
+      clienteId = session.id;
+      filter.cliente = session.id;
+    } else if (session.role === 'contratista') {
+      filter.contratista = session.id;
+    } else if (session.role === 'tecnico') {
+      const tecnico = await Tecnico.findOne({ user: session.id }).select('_id');
+      filter.tecnico = tecnico?._id || null;
+    } else {
+      if (idSeguro(searchParams.get('clienteId'))) { clienteId = searchParams.get('clienteId'); filter.cliente = clienteId; }
+      if (idSeguro(searchParams.get('contratistaId'))) filter.contratista = searchParams.get('contratistaId');
+      if (idSeguro(searchParams.get('tecnicoId'))) filter.tecnico = searchParams.get('tecnicoId');
     }
 
     if (estado) {
@@ -88,7 +92,6 @@ export async function GET(request) {
       .sort({ createdAt: -1, fechaProgramada: 1 });
 
     // Ganancia por cita: solo para el contratista dueño, su técnico o el admin (la sesión es opcional).
-    const session = await getSessionFromRequest(request);
     const verGanancias = ['contratista', 'tecnico', 'admin'].includes(session?.role);
     const config = verGanancias ? await getFinancialConfig() : null;
     const cache = {};
@@ -158,8 +161,11 @@ export async function POST(request) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['cliente']);
+    if (error) return error;
+
     const formData = await request.formData();
-    const clienteId = formData.get('clienteId');
+    const clienteId = session.id; // del token; el campo del body se ignora
     const servicioId = formData.get('servicioId');
     const descripcionProblema = formData.get('descripcionProblema');
     const ubicacion = JSON.parse(formData.get('ubicacion') || '{}');

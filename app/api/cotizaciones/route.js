@@ -3,42 +3,46 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Cotizacion from '@/models/Cotizacion';
 import Contratista from '@/models/Contratista';
+import Tecnico from '@/models/Tecnico';
+import { requireSession } from '@/lib/session';
+import { idSeguro } from '@/lib/sanitize';
 
 // GET - Obtener cotizaciones
 export async function GET(request) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['cliente', 'contratista', 'tecnico', 'admin']);
+    if (error) return error;
+
     const { searchParams } = new URL(request.url);
-    const clienteId = searchParams.get('clienteId');
-    const contratistaId = searchParams.get('contratistaId');
     const estado = searchParams.get('estado');
-    const citaId = searchParams.get('citaId');
+    const citaId = idSeguro(searchParams.get('citaId'));
 
+    // El alcance sale del token; los ids de la query solo los respeta el admin.
     let filter = {};
+    const Cita = (await import('@/models/Cita')).default;
 
-    if (citaId) {
-      filter.cita = citaId;
-    }
-
-    if (clienteId) {
-      const Cita = (await import('@/models/Cita')).default;
-      const citas = await Cita.find({ cliente: clienteId }).select('_id');
-      const idsCliente = citas.map(c => c._id.toString());
-      filter.cita = citaId
-        ? { $in: idsCliente.includes(citaId) ? [citaId] : [] }
-        : { $in: citas.map(c => c._id) };
+    if (session.role === 'cliente') {
+      const citas = await Cita.find({ cliente: session.id, ...(citaId ? { _id: citaId } : {}) }).select('_id');
+      filter.cita = { $in: citas.map(c => c._id) };
       // El cliente nunca ve cotizaciones en revisión interna del contratista/técnico
       filter.estado = { $nin: ['pendiente', 'pendiente_contratista', 'rechazada_contratista'] };
-    }
-
-    if (contratistaId) {
-      filter.contratista = contratistaId;
+    } else {
+      if (citaId) filter.cita = citaId;
+      if (session.role === 'contratista') {
+        filter.contratista = session.id;
+      } else if (session.role === 'tecnico') {
+        const tecnico = await Tecnico.findOne({ user: session.id }).select('_id');
+        filter.tecnico = tecnico?._id || null;
+      } else if (idSeguro(searchParams.get('contratistaId'))) {
+        filter.contratista = searchParams.get('contratistaId');
+      }
     }
 
     // El filtro explícito por estado tiene prioridad (p.ej. ?estado=pendiente_contratista
-    // que usa el contratista para su bandeja "Por revisar").
-    if (estado) {
+    // que usa el contratista para su bandeja "Por revisar"), salvo para el cliente.
+    if (estado && session.role !== 'cliente') {
       const estados = estado.split(',').map(e => e.trim());
       filter.estado = estados.length === 1 ? estados[0] : { $in: estados };
     }
@@ -71,9 +75,13 @@ export async function POST(request) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['contratista']);
+    if (error) return error;
+
     const data = await request.json();
 
-    const { citaId, contratistaId } = data;
+    const { citaId } = data;
+    const contratistaId = session.id; // del token
 
     if (!citaId) {
       return NextResponse.json(

@@ -4,39 +4,61 @@ import Incorporador from '@/models/Incorporador'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 import { enviarEmailBienvenidaContratista } from '@/lib/email-service'
+import { requireSession, getSessionFromRequest } from '@/lib/session'
+import { esObjectId, pick, soloTexto } from '@/lib/sanitize'
+import { relacionCon, camposPara, incorporadorDe, SELECT_PUBLICO } from '@/lib/contratista-acceso'
 
 // GET: Listar todos los contratistas o uno por ID
 // Query: ?id=  ?incorporadorId=  ?sinIncorporador=true  ?estatus=pendiente|activo|rechazado|suspendido
 export async function GET(request) {
   await connectDB();
+  const { session, error } = await requireSession(request);
+  if (error) return error;
+
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
-  const incorporadorId = searchParams.get('incorporadorId');
   const sinIncorporador = searchParams.get('sinIncorporador');
-  const estatus = searchParams.get('estatus');
+  const estatus = soloTexto(searchParams.get('estatus'));
 
   if (id) {
+    if (!esObjectId(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
     const contratista = await Contratista.findById(id)
       .populate('servicios', 'nombre descripcion categoria')
       .populate('incorporador');
     if (!contratista) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+    if (!(await relacionCon(session, contratista))) {
+      const publico = await Contratista.findById(id).select(SELECT_PUBLICO).populate('servicios', 'nombre categoria');
+      return NextResponse.json(publico);
+    }
     return NextResponse.json(contratista);
   }
 
-  const filtro = {};
+  // Listado completo: admin, o incorporador (sus contratistas y los que aún no tienen incorporador).
+  if (!['admin', 'incorporador'].includes(session.role)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  }
 
-  if (incorporadorId) {
-    filtro.incorporador = incorporadorId;
-  } else if (sinIncorporador === 'true') {
-    filtro.$or = [
-      { incorporador: null },
-      { incorporador: { $exists: false } }
-    ];
+  const filtro = {};
+  if (session.role === 'incorporador') {
+    const incId = await incorporadorDe(session);
+    if (sinIncorporador === 'true') {
+      filtro.$or = [{ incorporador: null }, { incorporador: { $exists: false } }];
+    } else {
+      filtro.incorporador = incId;
+    }
+  } else {
+    const incorporadorId = searchParams.get('incorporadorId');
+    if (esObjectId(incorporadorId)) {
+      filtro.incorporador = incorporadorId;
+    } else if (sinIncorporador === 'true') {
+      filtro.$or = [{ incorporador: null }, { incorporador: { $exists: false } }];
+    }
   }
 
   if (estatus) filtro.estatus = estatus;
 
   const contratistas = await Contratista.find(filtro)
+    .select('-password')
     .populate('servicios', 'nombre descripcion categoria')
     .populate('incorporador')
     .sort({ createdAt: -1 });
@@ -49,7 +71,18 @@ export async function GET(request) {
 export async function POST(req) {
   await connectDB();
 
-  const { nombre, email, telefono, curp, especialidad, direccion, notas, incorporadorId } = await req.json();
+  // Auto-registro público permitido, pero sin privilegios: solo admin/incorporador lo dejan activo.
+  const session = await getSessionFromRequest(req);
+  const body = await req.json();
+  const { nombre, email, telefono, curp, especialidad, direccion, notas, incorporadorId } = body;
+  for (const v of [nombre, email, telefono, curp, especialidad, direccion, notas, incorporadorId]) {
+    if (v !== undefined && typeof v !== 'string') {
+      return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+    }
+  }
+  if (incorporadorId !== undefined && !esObjectId(incorporadorId)) {
+    return NextResponse.json({ error: 'incorporadorId inválido' }, { status: 400 });
+  }
 
   if (!nombre || !email || !telefono || !curp || !incorporadorId) {
     return NextResponse.json(
@@ -72,6 +105,9 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Ya existe un contratista registrado con ese email' }, { status: 409 });
   }
 
+  const propioIncorporador = session?.role === 'incorporador' && String(await incorporadorDe(session)) === String(incorporador._id);
+  const autorizadoActivar = session?.role === 'admin' || propioIncorporador;
+
   // Password temporal generado del CURP — el contratista lo cambia en su primer login
   const passwordTemporal = await bcrypt.hash(curp.trim().toUpperCase(), 12);
 
@@ -85,7 +121,7 @@ export async function POST(req) {
     notas: notas?.trim() || '',
     password: passwordTemporal,
     incorporador: incorporador._id,
-    activo: true,
+    activo: !!autorizadoActivar,
     estatus: 'pendiente'
   });
 
@@ -101,7 +137,7 @@ export async function POST(req) {
   await incorporador.save();
 
   return NextResponse.json(
-    { message: 'Contratista registrado exitosamente', contratista: nuevoContratista },
+    { message: 'Contratista registrado exitosamente', contratista: { _id: nuevoContratista._id, nombre: nuevoContratista.nombre, email: nuevoContratista.email, estatus: nuevoContratista.estatus } },
     { status: 201 }
   );
 }
@@ -111,24 +147,37 @@ export async function PUT(req) {
   await connectDB();
 
   try {
-    const data = await req.json();
+    const { session, error } = await requireSession(req);
+    if (error) return error;
 
-    if (!data._id) {
+    const body = await req.json();
+
+    if (!esObjectId(body._id)) {
       return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
     }
 
     // Obtener el contratista actual para comparar cambios
-    const contratistaActual = await Contratista.findById(data._id);
+    const contratistaActual = await Contratista.findById(body._id);
     if (!contratistaActual) {
       return NextResponse.json({ error: 'Contratista no encontrado' }, { status: 404 });
     }
 
+    // Solo admin, el propio contratista o su incorporador, cada uno con sus campos permitidos
+    const relacion = await relacionCon(session, contratistaActual);
+    if (!relacion) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    const data = pick(body, camposPara(relacion));
+    data._id = body._id;
+
     // Si se incluye password, hashearlo
-    if (data.password) {
+    if (data.password !== undefined) {
+      if (typeof data.password !== 'string' || data.password.length < 6) {
+        return NextResponse.json({ error: 'La contraseña debe tener al menos 6 caracteres' }, { status: 400 });
+      }
       data.password = await bcrypt.hash(data.password, 12);
     }
 
-    const contratista = await Contratista.findByIdAndUpdate(data._id, data, { new: true });
+    const { _id: _omit, ...cambios } = data;
+    const contratista = await Contratista.findByIdAndUpdate(data._id, cambios, { new: true, runValidators: true });
 
     // Si cambió el incorporador, actualizar estadísticas
     if (data.incorporador !== undefined && data.incorporador !== contratistaActual.incorporador?.toString()) {
@@ -192,16 +241,18 @@ export async function PUT(req) {
     return NextResponse.json(contratista);
   } catch (error) {
     console.error('Error en PUT contratistas:', error);
-    return NextResponse.json({ error: 'Error interno del servidor', details: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
 
 // DELETE: Eliminar un contratista
 export async function DELETE(req) {
   await connectDB();
+  const { error } = await requireSession(req, ['admin']);
+  if (error) return error;
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
-  if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
+  if (!esObjectId(id)) return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
 
   // Obtener el contratista antes de eliminarlo
   const contratista = await Contratista.findById(id);

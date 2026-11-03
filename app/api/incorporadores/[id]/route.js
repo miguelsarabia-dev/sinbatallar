@@ -1,4 +1,8 @@
 import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
+import { esObjectId } from '@/lib/sanitize';
+import { perfilIdDe } from '@/lib/perfiles';
+
 import { connectDB } from '@/lib/mongoose';
 import Incorporador from '@/models/Incorporador';
 import User from '@/models/User';
@@ -53,8 +57,15 @@ export async function DELETE(request, { params }) {
 export async function GET(request, { params }) {
   try {
     await connectDB();
+
+    const { session, error } = await requireSession(request, ['incorporador', 'admin']);
+    if (error) return error;
     
-    const { id } = params;
+    const { id } = await params;
+    if (!esObjectId(id)) return NextResponse.json({ message: 'ID inválido' }, { status: 400 });
+    if (session.role === 'incorporador' && id !== await perfilIdDe(session)) {
+      return NextResponse.json({ message: 'No autorizado' }, { status: 403 });
+    }
     
     const incorporador = await Incorporador.findById(id)
       .populate('user', 'nombre email telefono foto')

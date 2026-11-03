@@ -2,11 +2,17 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Cotizacion from '@/models/Cotizacion';
+import { requireSession } from '@/lib/session';
+
 
 // PUT - Responder a una cotización (contratista)
 export async function PUT(request, { params }) {
   try {
     await connectDB();
+
+    const { session, error } = await requireSession(request, ['contratista']);
+    if (error) return error;
+    const contratistaId = session.id; // del token
 
     const { id } = await params;
     const data = await request.json();
@@ -14,8 +20,7 @@ export async function PUT(request, { params }) {
     const {
       descripcionTrabajo,
       materiales,
-      manoDeObra,
-      contratistaId
+      manoDeObra
     } = data;
 
     // Buscar la cotización

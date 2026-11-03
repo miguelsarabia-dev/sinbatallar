@@ -1,6 +1,7 @@
 import { connectDB } from '@/lib/mongoose';
 import Area from '@/models/Area';
 import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
 
 // GET: Determinar zona basada en coordenadas
 export async function GET(request) {
@@ -49,8 +50,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error al determinar zona:', error);
     return NextResponse.json({ 
-      error: 'Error interno del servidor',
-      details: error.message 
+      error: 'Error interno del servidor' 
     }, { status: 500 });
   }
 }

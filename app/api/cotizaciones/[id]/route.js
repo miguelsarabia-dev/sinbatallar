@@ -8,16 +8,24 @@ import Contratista from '@/models/Contratista';
 import Comprobante from '@/models/Comprobante';
 import { enviarEmailsCitaAceptada, enviarEmailsCitaCancelada, enviarEmailCitaCotizada } from '@/lib/email-service';
 import { requireSession } from '@/lib/session';
+import Tecnico from '@/models/Tecnico';
+import { esObjectId } from '@/lib/sanitize';
 
 // GET - Obtener una cotización específica
 export async function GET(request, { params }) {
   try {
     await connectDB();
 
+    const { session, error: errorSesion } = await requireSession(request, ['cliente', 'contratista', 'tecnico', 'admin']);
+    if (errorSesion) return errorSesion;
+
     const { id } = await params;
+    if (!esObjectId(id)) {
+      return NextResponse.json({ error: 'Cotización no encontrada' }, { status: 404 });
+    }
 
     const cotizacion = await Cotizacion.findById(id)
-      .populate('contratista', 'nombre email telefono promedioCalificacion')
+      .populate('contratista', 'nombre email telefono promedioCalificacion informacionPago')
       .populate({
         path: 'cita',
         populate: [
@@ -31,6 +39,22 @@ export async function GET(request, { params }) {
         { error: 'Cotización no encontrada' },
         { status: 404 }
       );
+    }
+
+    // Dueño: el cliente de la cita (sin estados internos), el contratista, el técnico que la originó o admin.
+    const clienteDeLaCita = cotizacion.cita?.cliente?._id?.toString();
+    let permitido = session.role === 'admin';
+    if (session.role === 'contratista') permitido = cotizacion.contratista?._id?.toString() === session.id;
+    if (session.role === 'cliente') {
+      permitido = clienteDeLaCita === session.id &&
+        !['pendiente', 'pendiente_contratista', 'rechazada_contratista'].includes(cotizacion.estado);
+    }
+    if (session.role === 'tecnico') {
+      const tecnico = await Tecnico.findOne({ user: session.id }).select('_id');
+      permitido = !!tecnico && cotizacion.tecnico?.toString() === tecnico._id.toString();
+    }
+    if (!permitido) {
+      return NextResponse.json({ error: 'Cotización no encontrada' }, { status: 404 });
     }
 
     return NextResponse.json(cotizacion);
@@ -49,6 +73,9 @@ export async function DELETE(request, { params }) {
   try {
     await connectDB();
 
+    const { session, error: errorSesion } = await requireSession(request, ['contratista', 'admin']);
+    if (errorSesion) return errorSesion;
+
     const { id } = await params;
 
     const cotizacion = await Cotizacion.findById(id);
@@ -58,6 +85,13 @@ export async function DELETE(request, { params }) {
         { error: 'Cotización no encontrada' },
         { status: 404 }
       );
+    }
+    if (session.role === 'contratista' && cotizacion.contratista.toString() !== session.id) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+    // Con pago en curso no se borra (rompería el rastro del dinero)
+    if (['aceptada'].includes(cotizacion.estado) && session.role !== 'admin') {
+      return NextResponse.json({ error: 'No se puede eliminar una cotización aceptada' }, { status: 400 });
     }
 
     // Si la cotización está vinculada a una cita, actualizarla
@@ -97,17 +131,12 @@ export async function PUT(request, { params }) {
   try {
     await connectDB();
 
+    const { session, error: errorSesion } = await requireSession(request, ['contratista']);
+    if (errorSesion) return errorSesion;
+    const contratistaId = session.id; // del token
+
     const { id } = await params;
     const data = await request.json();
-
-    const { contratistaId } = data;
-
-    if (!contratistaId) {
-      return NextResponse.json(
-        { error: 'Se requiere contratistaId' },
-        { status: 400 }
-      );
-    }
 
     const cotizacion = await Cotizacion.findById(id);
 

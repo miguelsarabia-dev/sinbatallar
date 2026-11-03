@@ -3,17 +3,36 @@ import { connectDB } from '@/lib/mongoose';
 import Area from '@/models/Area';
 import Contratista from '@/models/Contratista';
 import Aperturador from '@/models/Aperturador';
+import { getSessionFromRequest, requireSession } from '@/lib/session';
+import { esObjectId, escaparRegex } from '@/lib/sanitize';
+import { perfilIdDe } from '@/lib/perfiles';
+import { puedeEditarArea, SELECT_AREA_PUBLICA } from '@/lib/areas-acceso';
+
 
 // GET - Obtener todas las áreas
 export async function GET(request) {
   try {
     await connectDB();
 
-    const areas = await Area.find()
-      .populate('contratistas', 'nombre email telefono promedioCalificacion')
-      .populate('aperturador')
-      .sort({ createdAt: -1 });
+    const session = await getSessionFromRequest(request);
+    const { searchParams } = new URL(request.url);
 
+    // Admin: todo. Aperturador: sus zonas completas. Resto (incluido sin sesión): solo zonas activas, datos públicos.
+    let areas;
+    if (session?.role === 'admin') {
+      areas = await Area.find()
+        .populate('contratistas', 'nombre email telefono promedioCalificacion')
+        .populate('aperturador')
+        .sort({ createdAt: -1 });
+    } else if (session?.role === 'aperturador') {
+      const miId = await perfilIdDe(session);
+      areas = await Area.find({ aperturador: miId })
+        .populate('contratistas', 'nombre email telefono promedioCalificacion')
+        .populate('aperturador')
+        .sort({ createdAt: -1 });
+    } else {
+      areas = await Area.find({ activo: true }).select(SELECT_AREA_PUBLICA).sort({ createdAt: -1 });
+    }
     return NextResponse.json(areas);
   } catch (error) {
     console.error('Error obteniendo áreas:', error);
@@ -27,8 +46,13 @@ export async function GET(request) {
 // POST - Crear nueva área
 export async function POST(request) {
   try {
+    const { session, error } = await requireSession(request, ['aperturador', 'admin']);
+    if (error) return error;
+
     const body = await request.json();
-    const { nombre, descripcion, municipio, estado, tipo, codigoPostal, clasificacion, poligono, contratistas = [], aperturadorId, estadisticas } = body;
+    const { nombre, descripcion, municipio, estado, tipo, codigoPostal, clasificacion, poligono, contratistas = [], estadisticas } = body;
+    // Un aperturador crea zonas a su nombre; el admin puede asignar otro aperturador
+    const aperturadorId = session.role === 'aperturador' ? await perfilIdDe(session) : (esObjectId(body.aperturadorId) ? body.aperturadorId : null);
 
     // Validaciones
     if (!nombre?.trim()) {
@@ -56,7 +80,7 @@ export async function POST(request) {
 
     // Verificar que no exista otra área con el mismo nombre
     const areaExistente = await Area.findOne({
-      nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') }
+      nombre: { $regex: new RegExp(`^${escaparRegex(nombre.trim())}$`, 'i') }
     });
 
     if (areaExistente) {
@@ -134,6 +158,9 @@ export async function POST(request) {
 // PUT - Actualizar área existente
 export async function PUT(request) {
   try {
+    const { session, error } = await requireSession(request, ['aperturador', 'admin']);
+    if (error) return error;
+
     const body = await request.json();
     const { _id, nombre, descripcion, municipio, estado, tipo, codigoPostal, clasificacion, poligono, contratistas = [] } = body;
 
@@ -146,6 +173,9 @@ export async function PUT(request) {
 
     await connectDB();
 
+    if (!esObjectId(_id)) {
+      return NextResponse.json({ error: 'ID del área no válido' }, { status: 400 });
+    }
     const area = await Area.findById(_id);
     if (!area) {
       return NextResponse.json(
@@ -153,11 +183,14 @@ export async function PUT(request) {
         { status: 404 }
       );
     }
+    if (!(await puedeEditarArea(session, area))) {
+      return NextResponse.json({ error: 'No autorizado para esta zona' }, { status: 403 });
+    }
 
     // Verificar nombre único (excluyendo el área actual)
     if (nombre && nombre.trim() !== area.nombre) {
       const areaExistente = await Area.findOne({
-        nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') },
+        nombre: { $regex: new RegExp(`^${escaparRegex(nombre.trim())}$`, 'i') },
         _id: { $ne: _id }
       });
 

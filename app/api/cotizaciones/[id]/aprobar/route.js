@@ -4,22 +4,19 @@ import { connectDB } from '@/lib/mongoose';
 import Cotizacion from '@/models/Cotizacion';
 import Cita from '@/models/Cita';
 import { enviarEmailCitaCotizada } from '@/lib/email-service';
+import { requireSession } from '@/lib/session';
+
 
 // POST - Aprobar una cotización (cambiar de pendiente a enviada)
 export async function POST(request, { params }) {
   try {
     await connectDB();
 
-    const { id } = await params;
-    const data = await request.json();
-    const { contratistaId } = data;
+    const { session, error } = await requireSession(request, ['contratista', 'admin']);
+    if (error) return error;
 
-    if (!contratistaId) {
-      return NextResponse.json(
-        { error: 'contratistaId es requerido' },
-        { status: 400 }
-      );
-    }
+    const { id } = await params;
+    const contratistaId = session.id; // del token
 
     // Buscar la cotización
     const cotizacion = await Cotizacion.findById(id);
@@ -32,7 +29,7 @@ export async function POST(request, { params }) {
     }
 
     // Verificar que el contratista que aprueba es el dueño
-    if (cotizacion.contratista.toString() !== contratistaId) {
+    if (session.role !== 'admin' && cotizacion.contratista.toString() !== contratistaId) {
       return NextResponse.json(
         { error: 'No tienes permiso para aprobar esta cotización' },
         { status: 403 }
@@ -86,7 +83,7 @@ export async function POST(request, { params }) {
   } catch (error) {
     console.error('Error al aprobar cotización:', error);
     return NextResponse.json(
-      { error: 'Error interno del servidor', details: error.message },
+      { error: 'Error interno del servidor' },
       { status: 500 }
     );
   }

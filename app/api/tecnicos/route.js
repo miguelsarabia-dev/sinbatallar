@@ -5,6 +5,9 @@ import Tecnico from '@/models/Tecnico';
 import User from '@/models/User';
 import Contratista from '@/models/Contratista';
 import { hashPassword } from '@/lib/auth';
+import { requireSession, getSessionFromRequest } from '@/lib/session';
+import { esObjectId, pick } from '@/lib/sanitize';
+
 
 // GET /api/tecnicos?contratistaId=xxx
 // GET /api/tecnicos?userId=xxx
@@ -13,14 +16,24 @@ export async function GET(request) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['contratista', 'tecnico', 'admin']);
+    if (error) return error;
+
     const { searchParams } = new URL(request.url);
     const contratistaId = searchParams.get('contratistaId');
     const userId = searchParams.get('userId');
-    const areaId = searchParams.get('areaId');
+    const areaId = esObjectId(searchParams.get('areaId')) ? searchParams.get('areaId') : null;
 
+    // El alcance sale del token: el contratista ve sus técnicos, el técnico su propio perfil.
     const filtroBase = {};
-    if (contratistaId) filtroBase.contratista = contratistaId;
-    if (userId) filtroBase.user = userId;
+    if (session.role === 'contratista') {
+      filtroBase.contratista = session.id;
+    } else if (session.role === 'tecnico') {
+      filtroBase.user = session.id;
+    } else {
+      if (esObjectId(contratistaId)) filtroBase.contratista = contratistaId;
+      if (esObjectId(userId)) filtroBase.user = userId;
+    }
 
     // Self-healing de zonas: rellenar el areasCobertura vacío de los técnicos con la
     // zona de su contratista antes de filtrar (mismo patrón que ubicacion.zona en citas).
@@ -62,8 +75,18 @@ export async function POST(request) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['contratista', 'admin']);
+    if (error) return error;
+
     const body = await request.json();
-    const { nombre, email, password, telefono, contratistaId, especialidades = [], areasCobertura = [] } = body;
+    const { nombre, email, password, telefono, especialidades = [], areasCobertura = [] } = body;
+    // El técnico se crea siempre para el contratista del token (admin: el del body)
+    const contratistaId = session.role === 'contratista' ? session.id : body.contratistaId;
+    for (const v of [nombre, email, password, telefono]) {
+      if (v !== undefined && typeof v !== 'string') {
+        return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+      }
+    }
 
     if (!nombre || !email || !password || !contratistaId) {
       return NextResponse.json(

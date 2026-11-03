@@ -1,5 +1,8 @@
 // app/api/materiales/route.js
 import { NextResponse } from 'next/server';
+import { requireSession, getSessionFromRequest } from '@/lib/session';
+import { esObjectId, pick } from '@/lib/sanitize';
+
 import { connectDB } from '@/lib/mongoose';
 import Material from '@/models/Material';
 import Ferretero from '@/models/Ferretero';
@@ -10,10 +13,15 @@ export async function GET(request) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request);
+    if (error) return error;
+
     const { searchParams } = new URL(request.url);
-    const ferreteroUserId = searchParams.get('ferreteroUserId');
+    const ferreteroUserId = esObjectId(searchParams.get('ferreteroUserId')) ? searchParams.get('ferreteroUserId') : null;
     const categoria = searchParams.get('categoria');
-    const soloActivos = searchParams.get('soloActivos') !== 'false';
+    // Ver materiales inactivos: solo el dueño del catálogo o admin
+    const veInactivos = session.role === 'admin' || (session.role === 'ferretero' && session.id === ferreteroUserId);
+    const soloActivos = searchParams.get('soloActivos') !== 'false' || !veInactivos;
 
     const filtro = {};
 
@@ -27,7 +35,7 @@ export async function GET(request) {
     }
 
     if (soloActivos) filtro.activo = true;
-    if (categoria) filtro.categoria = categoria;
+    if (typeof categoria === 'string' && categoria) filtro.categoria = categoria;
 
     const materiales = await Material.find(filtro)
       .populate('ferretero', 'nombre')
@@ -46,8 +54,18 @@ export async function POST(request) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['ferretero', 'admin']);
+    if (error) return error;
+
     const body = await request.json();
-    const { nombre, categoria, unidad, precio, ferreteroUserId } = body;
+    const { nombre, categoria, unidad, precio } = body;
+    // El material se crea para el ferretero del token (admin: el del body)
+    const ferreteroUserId = session.role === 'ferretero' ? session.id : body.ferreteroUserId;
+    for (const v of [nombre, categoria, unidad, body.descripcion, body.marca, body.imagenUrl, body.imagenPublicId]) {
+      if (v !== undefined && typeof v !== 'string') {
+        return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+      }
+    }
 
     if (!nombre || !categoria || !unidad || precio === undefined || !ferreteroUserId) {
       return NextResponse.json(

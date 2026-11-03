@@ -4,6 +4,8 @@ import { connectDB } from '@/lib/mongoose';
 import Cotizacion from '@/models/Cotizacion';
 import Cita from '@/models/Cita';
 import { enviarEmailsCitaAceptada } from '@/lib/email-service';
+import { requireSession } from '@/lib/session';
+
 
 // PUT - Aceptar o rechazar una cotización (cliente)
 export async function PUT(request, { params }) {
@@ -95,9 +97,13 @@ export async function POST(request, { params }) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['cliente']);
+    if (error) return error;
+    const clienteId = session.id; // del token
+
     const { id } = await params;
     const requestData = await request.json();
-    const { decision, clienteId } = requestData;
+    const { decision } = requestData;
 
     if (!['aceptar', 'rechazar'].includes(decision)) {
       return NextResponse.json({ error: 'Decisión inválida' }, { status: 400 });

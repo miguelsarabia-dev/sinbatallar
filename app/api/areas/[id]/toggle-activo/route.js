@@ -5,13 +5,26 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Area from '@/models/Area';
+import { getSessionFromRequest, requireSession } from '@/lib/session';
+import { esObjectId, escaparRegex } from '@/lib/sanitize';
+import { perfilIdDe } from '@/lib/perfiles';
+import { puedeEditarArea, SELECT_AREA_PUBLICA } from '@/lib/areas-acceso';
+
 
 export async function PUT(request, { params }) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['aperturador', 'admin']);
+    if (error) return error;
+
     const { id } = await params;
     const { activo } = await request.json();
+    if (!esObjectId(id)) return NextResponse.json({ error: 'ID del área no válido' }, { status: 400 });
+    const existente = await Area.findById(id);
+    if (existente && !(await puedeEditarArea(session, existente))) {
+      return NextResponse.json({ error: 'No autorizado para esta zona' }, { status: 403 });
+    }
 
     if (typeof activo !== 'boolean') {
       return NextResponse.json(

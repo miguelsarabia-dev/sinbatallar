@@ -5,15 +5,19 @@ import { enviarNotificacionCambioEstado } from '@/lib/email-service';
 import { requireSession } from '@/lib/session';
 import { cambiarEstadoCita, resolverActor } from '@/lib/citas-estado';
 import { resolverCotizacionAceptada } from '@/lib/comisiones';
+import { esObjectId } from '@/lib/sanitize';
 
 // GET - Obtener una cita especifica por ID
 export async function GET(request, { params }) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request);
+    if (error) return error;
+
     const { id } = await params;
 
-    if (!id) {
+    if (!id || !esObjectId(id)) {
       return NextResponse.json({ error: 'ID de cita requerido' }, { status: 400 });
     }
 
@@ -25,6 +29,12 @@ export async function GET(request, { params }) {
       .populate('cotizacionAceptada');
 
     if (!cita) {
+      return NextResponse.json({ error: 'Cita no encontrada' }, { status: 404 });
+    }
+
+    // Solo el cliente, su contratista, su técnico o admin. 404 para no confirmar que existe.
+    const actor = await resolverActor(session, cita);
+    if (!actor.autorizado) {
       return NextResponse.json({ error: 'Cita no encontrada' }, { status: 404 });
     }
 

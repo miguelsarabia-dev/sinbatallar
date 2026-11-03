@@ -11,6 +11,9 @@ export async function GET(request, { params }) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['contratista', 'tecnico', 'admin']);
+    if (error) return error;
+
     const { id } = await params;
 
     const tecnico = await Tecnico.findById(id)
@@ -18,6 +21,12 @@ export async function GET(request, { params }) {
       .populate('contratista', 'nombre email');
 
     if (!tecnico) {
+      return NextResponse.json({ error: 'Técnico no encontrado' }, { status: 404 });
+    }
+
+    const esDueno = session.role === 'contratista' && tecnico.contratista?._id?.toString() === session.id;
+    const esElMismo = session.role === 'tecnico' && tecnico.user?._id?.toString() === session.id;
+    if (!esDueno && !esElMismo && session.role !== 'admin') {
       return NextResponse.json({ error: 'Técnico no encontrado' }, { status: 404 });
     }
 
@@ -106,11 +115,17 @@ export async function DELETE(request, { params }) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['contratista', 'admin']);
+    if (error) return error;
+
     const { id } = await params;
 
     const tecnico = await Tecnico.findById(id);
     if (!tecnico) {
       return NextResponse.json({ error: 'Técnico no encontrado' }, { status: 404 });
+    }
+    if (session.role === 'contratista' && tecnico.contratista.toString() !== session.id) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
     await User.findByIdAndDelete(tecnico.user);

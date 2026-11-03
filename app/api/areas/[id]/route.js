@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Area from '@/models/Area';
+import { getSessionFromRequest, requireSession } from '@/lib/session';
+import { esObjectId, escaparRegex } from '@/lib/sanitize';
+import { perfilIdDe } from '@/lib/perfiles';
+import { puedeEditarArea, SELECT_AREA_PUBLICA } from '@/lib/areas-acceso';
+
 
 // DELETE - Eliminar área
 export async function DELETE(request, { params }) {
@@ -44,7 +49,10 @@ export async function DELETE(request, { params }) {
 // PUT - Actualizar área
 export async function PUT(request, { params }) {
   try {
+    const { session, error } = await requireSession(request, ['aperturador', 'admin']);
+    if (error) return error;
     const { id } = await params;
+    if (!esObjectId(id)) return NextResponse.json({ error: 'ID del área no válido' }, { status: 400 });
 
     await connectDB();
 
@@ -62,6 +70,9 @@ export async function PUT(request, { params }) {
     const area = await Area.findById(id);
     if (!area) {
       return NextResponse.json({ error: 'Área no encontrada' }, { status: 404 });
+    }
+    if (!(await puedeEditarArea(session, area))) {
+      return NextResponse.json({ error: 'No autorizado para esta zona' }, { status: 403 });
     }
 
     const updateFields = {};
@@ -114,6 +125,9 @@ export async function GET(request, { params }) {
 
     await connectDB();
 
+    const { session, error } = await requireSession(request);
+    if (error) return error;
+
     const area = await Area.findById(id)
       .populate('contratistas', 'nombre email telefono calificacionNivel');
 
@@ -122,6 +136,12 @@ export async function GET(request, { params }) {
         { error: 'Área no encontrada' },
         { status: 404 }
       );
+    }
+
+    // Datos completos solo para admin / aperturador dueño; el resto ve lo público
+    if (!(await puedeEditarArea(session, area))) {
+      const publica = await Area.findById(id).select(SELECT_AREA_PUBLICA);
+      return NextResponse.json(publica);
     }
 
     return NextResponse.json(area);

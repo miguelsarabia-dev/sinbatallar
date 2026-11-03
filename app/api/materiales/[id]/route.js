@@ -1,5 +1,8 @@
 // app/api/materiales/[id]/route.js
 import { NextResponse } from 'next/server';
+import { requireSession, getSessionFromRequest } from '@/lib/session';
+import { esObjectId, pick } from '@/lib/sanitize';
+
 import { connectDB } from '@/lib/mongoose';
 import Material from '@/models/Material';
 
