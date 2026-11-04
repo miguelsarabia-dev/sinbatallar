@@ -56,6 +56,10 @@ const citaSchema = new mongoose.Schema({
   // Técnico asignado por el contratista
   tecnico: { type: mongoose.Schema.Types.ObjectId, ref: 'Tecnico', default: null },
 
+  // Avance del técnico dentro del servicio (lo marca el técnico asignado; se limpia al completar/cancelar)
+  subestadoTecnico: { type: String, enum: ['cotizando', 'en_camino', 'en_sitio', 'trabajando', null], default: null },
+  fechaSubestadoTecnico: { type: Date, default: null },
+
   // Confirmaciones de cierre
   tecnicoMarcoCompletado: { type: Boolean, default: false },
   fechaTecnicoCompletado: { type: Date, default: null },
