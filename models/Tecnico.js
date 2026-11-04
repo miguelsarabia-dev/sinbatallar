@@ -24,6 +24,10 @@ const tecnicoSchema = new mongoose.Schema({
   }],
   especialidades: [{ type: String, trim: true }],
   // % de la parte de mano de obra del contratista que se lleva este técnico (lo define el contratista)
+  // Disponibilidad para tomar servicios directos (la cambia el técnico o su contratista)
+  disponible: { type: Boolean, default: true },
+  promedioCalificacion: { type: Number, default: 0, min: 0, max: 5 },
+  totalCalificaciones: { type: Number, default: 0, min: 0 },
   porcentajeGanancia: { type: Number, default: 0, min: 0, max: 100 },
   estadisticas: {
     serviciosRealizados: { type: Number, default: 0 },

@@ -23,7 +23,7 @@ export async function GET(request) {
     const clienteId = session.role === 'cliente' ? session.id
       : (esObjectId(searchParams.get('clienteId')) ? searchParams.get('clienteId') : null);
 
-    let filter = {};
+    let filter = { oculta: { $ne: true } };
 
     if (tipo) {
       filter.tipoCalificado = 'Contratista';

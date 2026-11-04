@@ -95,6 +95,29 @@ export default function UsersManager({
     );
   };
 
+  // Suspender / reactivar: la cuenta suspendida no puede iniciar sesión y su sesión actual deja de valer
+  const handleSuspend = async (user) => {
+    const suspender = !user.suspendido;
+    let motivo;
+    if (suspender) {
+      motivo = window.prompt(`Motivo para suspender a ${user.nombre}:`);
+      if (!motivo?.trim()) return;
+    }
+    try {
+      const res = await fetch(`/api/users/${user._id}/suspender`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suspendido: suspender, motivo })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'No se pudo cambiar la suspensión');
+      showSuccess(suspender ? 'Usuario suspendido' : 'Usuario reactivado');
+      fetchUsers(searchParams, pagination.page);
+    } catch (error) {
+      showError(error.message);
+    }
+  };
+
   const handleUpdateUser = async (userData) => {
     await onUpdateUser(userData);
     setShowEditForm(false);
@@ -141,6 +164,7 @@ export default function UsersManager({
         onViewDetails={handleViewDetails}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onSuspend={handleSuspend}
         loading={loading}
       />
 

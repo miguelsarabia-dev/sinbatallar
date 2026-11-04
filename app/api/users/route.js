@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 import { enviarEmailBienvenidaCliente } from '@/lib/email-service'
 import { getSessionFromRequest } from '@/lib/session'
+import { limitarPorIp } from '@/lib/rate-limit'
 
 // Roles que solo un admin puede crear/asignar (el registro público es solo para clientes).
 const ROLES_RESTRINGIDOS = ['aperturador', 'incorporador', 'admin'];
@@ -32,8 +33,12 @@ async function asegurarDocIncorporador(userId) {
 function validateUserData(data, isRegister = false) {
     const errors = [];
 
-    if (!data.email || !data.email.includes('@')) {
-        errors.push('Email inválido');
+    const telefonoValido = /^\d{10}$/.test(String(data.telefono ?? '').replace(/\D/g, '').replace(/^52(?=\d{10}$)/, ''));
+    if (data.email) {
+        if (!data.email.includes('@')) errors.push('Email inválido');
+    } else if (!telefonoValido) {
+        // Sin email, el teléfono (10 dígitos) es la identidad de la cuenta
+        errors.push('Ingresa un email válido o un teléfono de 10 dígitos');
     }
 
     if (isRegister) {
@@ -99,6 +104,16 @@ export async function GET(request) {
 export async function POST(request) {
     try {
         await connectDB();
+        // Registro público: límite por IP (un admin que crea cuentas no se limita)
+        if (!(await esAdminLaPeticion(request))) {
+            const espera = await limitarPorIp(request, 'registro-usuario', 10);
+            if (espera) {
+                return NextResponse.json(
+                    { error: 'Demasiados intentos de registro. Intenta de nuevo más tarde.' },
+                    { status: 429, headers: { 'Retry-After': String(espera) } }
+                );
+            }
+        }
         const contentType = request.headers.get('content-type') || '';
         let email, password, nombre, telefono, role, fotoBuffer;
         let isRegister = false;
@@ -133,9 +148,13 @@ export async function POST(request) {
         if (!isRegister) {
             return NextResponse.json({ error: 'Para iniciar sesión usa /api/auth/login' }, { status: 400 });
         }
-        if (typeof email !== 'string' || typeof password !== 'string') {
+        if ((email != null && typeof email !== 'string') || typeof password !== 'string' || typeof telefono !== 'string') {
             return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
         }
+        // Email opcional (registro solo con teléfono) y teléfono normalizado a 10 dígitos cuando lo es
+        email = email && email.trim() ? email.trim().toLowerCase() : null;
+        const digitosTel = telefono.replace(/\D/g, '').replace(/^52(?=\d{10}$)/, '');
+        if (/^\d{10}$/.test(digitosTel)) telefono = digitosTel;
 
         // Validación
         if (isRegister) {
@@ -151,7 +170,7 @@ export async function POST(request) {
             // Registro público: siempre cliente (cualquier otro rol lo asigna un admin)
             if (!esAdminQuienCrea) role = 'cliente';
 
-            const existingEmail = await User.findOne({ email });
+            const existingEmail = email ? await User.findOne({ email }) : null;
             if (existingEmail) {
                 return NextResponse.json({ error: 'Ya existe un usuario con este email' }, { status: 409 });
             }
@@ -162,13 +181,13 @@ export async function POST(request) {
             }
         }
 
-        let user = await User.findOne({ email });
+        let user = email ? await User.findOne({ email }) : null;
 
         if (!user) {
             if (isRegister) {
                 const hashedPassword = await bcrypt.hash(password, 12);
                 const userData = {
-                    email,
+                    ...(email ? { email } : {}),
                     password: hashedPassword,
                     nombre,
                     telefono,
@@ -179,7 +198,7 @@ export async function POST(request) {
                 }
                 user = await User.create(userData);
 
-                if (user.role === 'cliente') {
+                if (user.role === 'cliente' && user.email) {
                     enviarEmailBienvenidaCliente({
                         email: user.email,
                         nombre: user.nombre

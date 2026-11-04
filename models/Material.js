@@ -15,6 +15,8 @@ const materialSchema = new mongoose.Schema({
   precio: { type: Number, required: true, min: 0 },
   imagenUrl: { type: String, trim: true },
   imagenPublicId: { type: String, trim: true },
+  // Existencias. null/sin dato = no se controla el stock (cuentas anteriores); un número se valida y se descuenta.
+  stock: { type: Number, min: 0, default: null },
   activo: { type: Boolean, default: true },
   ferretero: {
     type: mongoose.Schema.Types.ObjectId,

@@ -10,6 +10,8 @@ import { uploadMultipleImages } from '@/lib/cloudinary';
 import { resolverAreaId } from '@/lib/geo-utils';
 import Comision from '@/models/Comision';
 import { idSeguro } from '@/lib/sanitize';
+import { enviarPush } from '@/lib/push';
+import Area from '@/models/Area';
 import Tecnico from '@/models/Tecnico';
 import { getSessionFromRequest, requireSession } from '@/lib/session';
 import { cambiarEstadoCita } from '@/lib/citas-estado';
@@ -123,6 +125,9 @@ export async function GET(request) {
 
         const obj = cita.toObject();
         obj.areaId = areaId || null;
+        // Express sin atender: sigue 'solicitada' pasados 30 min
+        obj.urgenteSinAtender = !!cita.esExpress && cita.estado === 'solicitada' &&
+          Date.now() - new Date(cita.createdAt).getTime() > 30 * 60 * 1000;
 
         const esDueno = session?.role === 'contratista' && String(cita.contratista?._id || '') === session.id;
         const esSuTecnico = session?.role === 'tecnico' && !!tecnicoSesionId && String(cita.tecnico?._id || '') === tecnicoSesionId;
@@ -144,6 +149,11 @@ export async function GET(request) {
         return obj;
       })
     );
+
+    // Para contratista y técnico, las express (urgentes) primero; el resto conserva el orden por fecha
+    if (session.role === 'contratista' || session.role === 'tecnico') {
+      citasConArea.sort((a, b) => (b.esExpress ? 1 : 0) - (a.esExpress ? 1 : 0));
+    }
 
     return NextResponse.json(citasConArea);
 
@@ -208,6 +218,7 @@ export async function POST(request) {
       imagenesProblema,
       ubicacion,
       fechaProgramada: fechaProgramada ? new Date(fechaProgramada) : null,
+      esExpress: formData.get('esExpress') === 'true',
       estado: 'solicitada'
     });
 
@@ -216,6 +227,21 @@ export async function POST(request) {
     // Notificar la creación (asignación a contratista ocurrirá después)
     const servicio = await Servicio.findById(servicioId);
     const cliente = await User.findById(clienteId);
+
+    // Aviso push a los contratistas que pueden atenderla (aprobados, disponibles, de la zona y con el servicio)
+    try {
+      const area = ubicacion.zona ? await Area.findById(ubicacion.zona).select('contratistas').lean() : null;
+      if (area?.contratistas?.length) {
+        const elegibles = await Contratista.find({
+          _id: { $in: area.contratistas }, aprobado: true, activo: true, servicios: servicioId
+        }).select('_id').lean();
+        await enviarPush(elegibles.map(c => c._id), {
+          titulo: nuevaCita.esExpress ? '¡Servicio EXPRESS disponible!' : 'Nueva solicitud de servicio',
+          cuerpo: `${servicio?.nombre || 'Servicio'} en tu zona`,
+          data: { tipo: 'cita_nueva', citaId: String(nuevaCita._id), urgente: !!nuevaCita.esExpress }
+        });
+      }
+    } catch (e) { console.error('Error avisando cita nueva:', e); }
 
     enviarNotificacionCambioEstado({
       nuevoEstado: 'solicitada',

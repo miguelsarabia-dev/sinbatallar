@@ -103,9 +103,6 @@ export async function PUT(request, { params }) {
 // GET - Obtener área específica
 export async function GET(request, { params }) {
   try {
-
-
-
     const { id } = await params;
 
     if (!id) {

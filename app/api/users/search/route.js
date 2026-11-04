@@ -7,11 +7,13 @@ import { soloTexto } from '@/lib/sanitize';
 // GET: Buscar usuarios por email o teléfono
 export async function GET(request) {
   await connectDB();
-  
+  const { error } = await requireSession(request, ['admin']);
+  if (error) return error;
+
   try {
     const { searchParams } = new URL(request.url);
-    const email = searchParams.get('email');
-    const telefono = searchParams.get('telefono');
+    const email = soloTexto(searchParams.get('email'));
+    const telefono = soloTexto(searchParams.get('telefono'));
     
     if (!email && !telefono) {
       return NextResponse.json({ 

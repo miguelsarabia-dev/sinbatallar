@@ -1,5 +1,8 @@
 // app/api/servicios-programables/solicitar/route.js
 import { NextResponse } from 'next/server';
+import { enviarPush } from '@/lib/push';
+import { enviarNotificacionCambioEstado } from '@/lib/email-service';
+
 import { requireSession } from '@/lib/session';
 import { connectDB } from '@/lib/mongoose';
 import Cita from '@/models/Cita';
@@ -26,6 +29,10 @@ export async function POST(request) {
     const descripcionProblema = formData.get('descripcionProblema');
     const ubicacionStr = formData.get('ubicacionServicio');
     const fechaPreferida = formData.get('fechaPreferida');
+    const fechaProgramadaForm = formData.get('fechaProgramada');
+    const horaInicio = formData.get('horaInicio');
+    // Servicio urgente: la app manda esExpress='true'|'false'
+    const esExpress = formData.get('esExpress') === 'true';
 
     // Procesar ubicación
     let ubicacionProcesada = {};
@@ -127,6 +134,10 @@ export async function POST(request) {
     // Resolver la zona (Area) a partir de las coordenadas de la dirección seleccionada
     ubicacionProcesada.zona = await resolverAreaId(ubicacionProcesada.coordenadas);
 
+    // fechaProgramada (si la app la manda) tiene prioridad sobre fechaPreferida
+    const fechaTexto = fechaProgramadaForm || fechaPreferida;
+    const fechaProgramadaValida = fechaTexto && !Number.isNaN(new Date(fechaTexto).getTime()) ? new Date(fechaTexto) : null;
+
     // Crear cita
     const nuevaCita = new Cita({
       cliente: clienteId,
@@ -135,7 +146,9 @@ export async function POST(request) {
       descripcionProblema,
       ubicacion: ubicacionProcesada,
       imagenesProblema,
-      fechaProgramada: fechaPreferida ? new Date(fechaPreferida) : null,
+      fechaProgramada: fechaProgramadaValida,
+      ...(typeof horaInicio === 'string' && horaInicio.trim() ? { horaInicio: horaInicio.trim().slice(0, 10) } : {}),
+      esExpress,
       estado: 'solicitada'
     });
 
@@ -147,6 +160,20 @@ export async function POST(request) {
       { path: 'servicio', select: 'nombre descripcion categoria' }
     ]);
 
+    // Aviso de cita nueva al contratista elegido: push (urgente si es express) y email
+    await enviarPush([contratistaId], {
+      titulo: esExpress ? '¡Servicio EXPRESS solicitado!' : 'Nueva solicitud de servicio',
+      cuerpo: `${nuevaCita.servicio?.nombre || 'Servicio'}: un cliente te lo solicitó`,
+      data: { tipo: 'cita_nueva', citaId: String(nuevaCita._id), urgente: esExpress }
+    });
+    enviarNotificacionCambioEstado({
+      nuevoEstado: 'solicitada',
+      cita: nuevaCita,
+      cliente: nuevaCita.cliente,
+      contratista: nuevaCita.contratista,
+      servicio: nuevaCita.servicio
+    }).catch(err => console.error('Error enviando email de cita nueva:', err));
+
     return NextResponse.json({
       success: true,
       message: 'Solicitud enviada. El contratista preparará una cotización.',
@@ -156,7 +183,8 @@ export async function POST(request) {
         cliente: nuevaCita.cliente,
         contratista: nuevaCita.contratista,
         servicio: nuevaCita.servicio,
-        fechaProgramada: nuevaCita.fechaProgramada
+        fechaProgramada: nuevaCita.fechaProgramada,
+        esExpress: nuevaCita.esExpress
       }
     }, { status: 201 });
 

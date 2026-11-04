@@ -14,8 +14,14 @@ const solicitudMaterialSchema = new mongoose.Schema({
     nombre: { type: String, required: true },
     unidad: { type: String },
     precio: { type: Number, min: 0 },
-    cantidad: { type: Number, required: true, min: 0.01 }
+    cantidad: { type: Number, required: true, min: 0.01 },
+    stockDescontado: { type: Boolean, default: false }
   }],
+  modoEntrega: { type: String, enum: ['recoger', 'entregar'], default: 'recoger' },
+  fechaRequerida: { type: Date, default: null },
+  total: { type: Number, default: 0, min: 0 },
+  origen: { type: String, enum: ['manual', 'automatica'], default: 'manual' },
+  motivoCancelacion: { type: String, trim: true },
   notas: { type: String, trim: true },
   estado: { type: String, enum: ['pendiente', 'confirmada', 'surtida', 'cancelada'], default: 'pendiente' },
   notasFerretero: { type: String, trim: true },

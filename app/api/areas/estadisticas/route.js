@@ -130,10 +130,13 @@ function calcularAreaPoligono(poligono) {
 // POST - Actualizar estadísticas de un área específica
 export async function POST(request) {
   try {
-
-
+    const { session, error } = await requireSession(request, ['aperturador', 'admin']);
+    if (error) return error;
 
     const { areaId } = await request.json();
+    if (!esObjectId(areaId)) {
+      return NextResponse.json({ error: 'ID del área no válido' }, { status: 400 });
+    }
 
     if (!areaId) {
       return NextResponse.json(

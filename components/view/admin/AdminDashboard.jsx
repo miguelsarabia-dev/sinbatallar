@@ -21,6 +21,11 @@ import UsersManager from './users/UsersManager';
 import ContratistasManager from './contratistas/ContratistasManager';
 import FinanzasDashboard from './finanzas/FinanzasDashboard';
 import PagosAdmin from './pagos/PagosAdmin';
+import TecnicosAdmin from './tecnicos/TecnicosAdmin';
+import SolicitudesMaterialAdmin from './solicitudes/SolicitudesMaterialAdmin';
+import CalificacionesAdmin from './calificaciones/CalificacionesAdmin';
+import ReportesAdmin from './reportes/ReportesAdmin';
+import DemandaAdmin from './demanda/DemandaAdmin';
 import FerretersManager from './ferreteros/FerretersManager';
 
 export default function AdminDashboard() {
@@ -1550,6 +1555,11 @@ export default function AdminDashboard() {
       icon: <FaMoneyBillWave />,
       count: null
     },
+    { key: 'tecnicos', label: 'Técnicos', icon: <FaTools />, count: null },
+    { key: 'solicitudes-material', label: 'Solicitudes de material', icon: <FaWarehouse />, count: null },
+    { key: 'calificaciones', label: 'Calificaciones', icon: <FaShieldAlt />, count: null },
+    { key: 'reportes', label: 'Reportes', icon: <FaChartBar />, count: null },
+    { key: 'demanda', label: 'Demanda fuera de zona', icon: <FaMapMarkedAlt />, count: null },
     {
       key: 'servicios',
       label: 'Servicios',
@@ -1790,6 +1800,21 @@ export default function AdminDashboard() {
 
       case 'pagos':
         return <PagosAdmin />;
+
+      case 'tecnicos':
+        return <TecnicosAdmin />;
+
+      case 'solicitudes-material':
+        return <SolicitudesMaterialAdmin />;
+
+      case 'calificaciones':
+        return <CalificacionesAdmin />;
+
+      case 'reportes':
+        return <ReportesAdmin />;
+
+      case 'demanda':
+        return <DemandaAdmin />;
 
       case 'servicios':
         return (

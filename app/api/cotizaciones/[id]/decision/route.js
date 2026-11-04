@@ -12,10 +12,14 @@ export async function PUT(request, { params }) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['cliente']);
+    if (error) return error;
+    const clienteId = session.id; // del token; el body se ignora
+
     const { id } = await params;
     const data = await request.json();
 
-    const { decision, clienteId, fechaProgramada, comentario } = data;
+    const { decision, fechaProgramada, comentario } = data;
 
     const cotizacion = await Cotizacion.findById(id);
     if (!cotizacion) {

@@ -1,5 +1,6 @@
 // app/api/ferreteros/[id]/route.js
 import { NextResponse } from 'next/server';
+import { enviarPush } from '@/lib/push';
 import { requireSession, getSessionFromRequest } from '@/lib/session';
 import { esObjectId, pick } from '@/lib/sanitize';
 
@@ -47,8 +48,8 @@ export async function PUT(request, { params }) {
 
     // El ferretero edita su negocio; aprobar/activar la cuenta es solo del admin.
     const camposPermitidos = session.role === 'admin'
-      ? ['nombreNegocio', 'telefono', 'direccion', 'activo', 'catalogoActivo', 'pendienteAprobacion']
-      : ['nombreNegocio', 'telefono', 'direccion', 'catalogoActivo'];
+      ? ['nombreNegocio', 'telefono', 'direccion', 'horario', 'activo', 'catalogoActivo', 'pendienteAprobacion']
+      : ['nombreNegocio', 'telefono', 'direccion', 'horario', 'catalogoActivo'];
     if (session.role !== 'admin' && body.catalogoActivo === true && !ferretero.activo) {
       return NextResponse.json({ error: 'Tu cuenta aún no está aprobada' }, { status: 403 });
     }
@@ -64,7 +65,11 @@ export async function PUT(request, { params }) {
       };
     }
 
+    const recienActivado = body.activo === true && session.role === 'admin' && !ferretero.isNew && ferretero.isModified('activo');
     await ferretero.save();
+    if (recienActivado) {
+      await enviarPush([ferretero.user], { titulo: '¡Cuenta aprobada!', cuerpo: 'Tu ferretería ya está activa', data: { tipo: 'cuenta_aprobada' } });
+    }
 
     // Si se desactiva el catálogo, desactivar todos sus materiales también
     if (body.catalogoActivo === false) {

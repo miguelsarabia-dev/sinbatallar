@@ -19,7 +19,10 @@ const cotizacionSchema = new mongoose.Schema({
     cantidad: { type: Number, required: true, min: 0 },
     precioPorUnidad: { type: Number, required: true, min: 0 },
     total: { type: Number, required: true, min: 0 },
-    materialCatalogoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Material', default: null }
+    materialCatalogoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Material', default: null },
+    // Mismo dato que materialCatalogoId (nombre que usa la app) + la ferretería de donde se surte
+    materialId: { type: mongoose.Schema.Types.ObjectId, ref: 'Material', default: null },
+    ferreteriaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Ferretero', default: null }
   }],
   manoDeObra: { type: Number, default: 0, min: 0 },
 

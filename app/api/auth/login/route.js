@@ -96,6 +96,10 @@ export async function POST(request) {
     }
     await limpiarFallos(claveCuenta);
 
+    if (cuenta.suspendido) {
+      return NextResponse.json({ success: false, message: 'Tu cuenta está suspendida' }, { status: 403 });
+    }
+
     // Las comprobaciones de estado van después de validar la contraseña (ya se probó que es la cuenta).
     if (userType === 'contratista') {
       userData = {

@@ -94,7 +94,20 @@ export async function PUT(request, { params }) {
     // Actualizar campos del perfil Tecnico
     if (body.especialidades !== undefined) tecnico.especialidades = body.especialidades;
     if (body.areasCobertura !== undefined) tecnico.areasCobertura = body.areasCobertura;
-    if (body.activo !== undefined) tecnico.activo = body.activo;
+    // Activar/desactivar la cuenta lo decide el contratista dueño (o admin), no el propio técnico
+    if (body.activo !== undefined) {
+      if (!esDueno && session.role !== 'admin') {
+        return NextResponse.json({ error: 'Solo el contratista puede activar o desactivar al técnico' }, { status: 403 });
+      }
+      tecnico.activo = body.activo;
+    }
+    // Disponibilidad para servicios directos: el propio técnico o su contratista
+    if (body.disponible !== undefined) {
+      if (typeof body.disponible !== 'boolean') {
+        return NextResponse.json({ error: 'disponible debe ser true o false' }, { status: 400 });
+      }
+      tecnico.disponible = body.disponible;
+    }
 
     await tecnico.save();
 

@@ -11,6 +11,7 @@ const ferreteroSchema = new mongoose.Schema({
   nombreNegocio: { type: String, required: true, trim: true },
   telefono: { type: String, trim: true },
   direccion: { type: String, trim: true },
+  horario: { type: String, trim: true },
   // Ubicación del negocio para buscar materiales por cercanía (GeoJSON Point [lng, lat])
   ubicacion: {
     type: {

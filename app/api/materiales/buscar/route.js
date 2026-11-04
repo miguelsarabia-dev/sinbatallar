@@ -5,6 +5,7 @@
 // Con lat/lng: devuelve solo materiales de ferreterías dentro del radio, con distanciaKm,
 // ordenados por cercanía ascendente. Sin lat/lng: comportamiento global por texto.
 import { NextResponse } from 'next/server';
+import { escaparRegex } from '@/lib/sanitize';
 import { connectDB } from '@/lib/mongoose';
 import Material from '@/models/Material';
 import Ferretero from '@/models/Ferretero';
@@ -69,20 +70,33 @@ export async function GET(request) {
     if (categoria) filtro.categoria = categoria;
     if (q) {
       filtro.$or = [
-        { nombre: { $regex: q, $options: 'i' } },
-        { marca: { $regex: q, $options: 'i' } },
-        { descripcion: { $regex: q, $options: 'i' } }
+        { nombre: { $regex: escaparRegex(q), $options: 'i' } },
+        { marca: { $regex: escaparRegex(q), $options: 'i' } },
+        { descripcion: { $regex: escaparRegex(q), $options: 'i' } }
       ];
     }
 
     const materiales = await Material.find(filtro).limit(50).lean();
 
-    // Adjuntar ferretería de origen + distancia a cada material
+    // Adjuntar ferretería de origen (con su _id de Ferretero, el que usa ferreteriaId) + distancia a cada material
+    const ferreterias = await Ferretero.find({ user: { $in: userIds } }).select('user nombreNegocio telefono direccion ubicacion horario').lean();
+    const ferreteriaPorUser = Object.fromEntries(ferreterias.map(f => [String(f.user), f]));
     const resultado = materiales.map(m => {
       const info = distanciaPorUser.get(m.ferretero.toString()) || { nombre: '', distanciaKm: null };
+      const f = ferreteriaPorUser[m.ferretero.toString()];
       return {
         ...m,
-        ferreteria: { _id: m.ferretero, nombre: info.nombre },
+        stock: m.stock ?? null,
+        ferreteria: {
+          _id: f?._id || m.ferretero,
+          userId: m.ferretero,
+          nombre: info.nombre,
+          nombreNegocio: f?.nombreNegocio || info.nombre,
+          telefono: f?.telefono,
+          direccion: f?.direccion,
+          ubicacion: f?.ubicacion,
+          horario: f?.horario
+        },
         distanciaKm: info.distanciaKm
       };
     });

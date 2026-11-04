@@ -1,7 +1,7 @@
 "use client";
 import { FaEdit, FaTrash, FaEye, FaUserShield, FaUser, FaWarehouse, FaTools, FaMapMarkedAlt, FaUserPlus } from 'react-icons/fa';
 
-export default function UserTable({ users, onViewDetails, onEdit, onDelete, loading }) {
+export default function UserTable({ users, onViewDetails, onEdit, onDelete, onSuspend, loading }) {
   const getRoleIcon = (role) => {
     switch (role) {
       case 'admin':
@@ -110,6 +110,11 @@ export default function UserTable({ users, onViewDetails, onEdit, onDelete, load
                     {getRoleIcon(user.role)}
                     {user.role}
                   </span>
+                  {user.suspendido && (
+                    <span className="ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800" title={user.motivoSuspension || ''}>
+                      Suspendido
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {user.telefono || 'N/A'}
@@ -135,6 +140,15 @@ export default function UserTable({ users, onViewDetails, onEdit, onDelete, load
                       title="Editar usuario"
                     >
                       <FaEdit size={16} />
+                    </button>
+                    <button
+                      onClick={() => onSuspend(user)}
+                      className={`px-2 py-1 text-xs rounded border transition-colors ${user.suspendido
+                        ? 'border-green-500 text-green-700 hover:bg-green-50'
+                        : 'border-orange-400 text-orange-700 hover:bg-orange-50'}`}
+                      title={user.suspendido ? 'Reactivar usuario' : 'Suspender usuario'}
+                    >
+                      {user.suspendido ? 'Reactivar' : 'Suspender'}
                     </button>
                     <button
                       onClick={() => onDelete(user._id)}
@@ -204,6 +218,12 @@ export default function UserTable({ users, onViewDetails, onEdit, onDelete, load
               >
                 <FaEdit size={14} />
                 Editar
+              </button>
+              <button
+                onClick={() => onSuspend(user)}
+                className="flex-1 px-3 py-2 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors text-sm"
+              >
+                {user.suspendido ? 'Reactivar' : 'Suspender'}
               </button>
               <button
                 onClick={() => onDelete(user._id)}

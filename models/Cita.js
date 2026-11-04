@@ -31,6 +31,13 @@ const citaSchema = new mongoose.Schema({
     zona: { type: mongoose.Schema.Types.ObjectId, ref: 'Area' }
   },
 
+  // Servicio urgente (se prioriza y alerta si nadie lo atiende)
+  esExpress: { type: Boolean, default: false },
+
+  // Horas del servicio (HH:MM). Antes se asignaban sin existir en el esquema y se descartaban.
+  horaInicio: { type: String, trim: true },
+  horaFin: { type: String, trim: true },
+
   // Estado de la cita
   estado: {
     type: String,
@@ -56,6 +63,10 @@ const citaSchema = new mongoose.Schema({
   // Técnico asignado por el contratista
   tecnico: { type: mongoose.Schema.Types.ObjectId, ref: 'Tecnico', default: null },
 
+  // Avance del técnico dentro del servicio (lo marca el técnico asignado; se limpia al completar/cancelar)
+  subestadoTecnico: { type: String, enum: ['cotizando', 'en_camino', 'en_sitio', 'trabajando', null], default: null },
+  fechaSubestadoTecnico: { type: Date, default: null },
+
   // Confirmaciones de cierre
   tecnicoMarcoCompletado: { type: Boolean, default: false },
   fechaTecnicoCompletado: { type: Date, default: null },
@@ -76,6 +87,7 @@ const citaSchema = new mongoose.Schema({
 
   // Flags de calificación
   calificadoContratista: { type: Boolean, default: false },
+  calificadoTecnico: { type: Boolean, default: false },
 
   // Información de pago
   pagado: { type: Boolean, default: false },

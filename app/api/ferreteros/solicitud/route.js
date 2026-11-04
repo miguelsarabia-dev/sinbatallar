@@ -5,11 +5,19 @@ import { connectDB } from '@/lib/mongoose';
 import Ferretero from '@/models/Ferretero';
 import User from '@/models/User';
 import { hashPassword } from '@/lib/auth';
+import { limitarPorIp } from '@/lib/rate-limit';
 
 export async function POST(request) {
   try {
     await connectDB();
 
+    const espera = await limitarPorIp(request, 'solicitud-ferretero', 5);
+    if (espera) {
+      return NextResponse.json(
+        { error: 'Demasiados intentos de registro. Intenta de nuevo más tarde.' },
+        { status: 429, headers: { 'Retry-After': String(espera) } }
+      );
+    }
     const { nombre, email, password, telefono, nombreNegocio, direccion, ubicacion } = await request.json();
 
     if (!nombre || !email || !password || !nombreNegocio) {
