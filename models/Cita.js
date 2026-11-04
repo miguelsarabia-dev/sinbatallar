@@ -34,6 +34,10 @@ const citaSchema = new mongoose.Schema({
   // Servicio urgente (se prioriza y alerta si nadie lo atiende)
   esExpress: { type: Boolean, default: false },
 
+  // Horas del servicio (HH:MM). Antes se asignaban sin existir en el esquema y se descartaban.
+  horaInicio: { type: String, trim: true },
+  horaFin: { type: String, trim: true },
+
   // Estado de la cita
   estado: {
     type: String,
