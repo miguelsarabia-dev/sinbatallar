@@ -5,7 +5,7 @@ import Cotizacion from '@/models/Cotizacion';
 import Cita from '@/models/Cita';
 import { enviarEmailCitaCotizada } from '@/lib/email-service';
 import { requireSession } from '@/lib/session';
-import { marcarCotizada } from '@/lib/citas-estado';
+import { enviarPush } from '@/lib/push';
 
 
 
@@ -60,6 +60,11 @@ export async function POST(request, { params }) {
       await cita.save();
 
       // Enviar email de cotización al cliente
+      await enviarPush([cita.cliente?._id || cita.cliente], {
+        titulo: 'Tienes una cotización',
+        cuerpo: 'Revisa y acepta la cotización de tu servicio',
+        data: { tipo: 'cotizacion_enviada', citaId: String(cita._id), cotizacionId: String(cotizacion._id) }
+      });
       enviarEmailCitaCotizada({
         cita,
         cliente: cita.cliente,

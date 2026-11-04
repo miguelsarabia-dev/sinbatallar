@@ -1,5 +1,6 @@
 // app/api/servicios-programables/solicitar/route.js
 import { NextResponse } from 'next/server';
+import { enviarPush } from '@/lib/push';
 import { enviarNotificacionCambioEstado } from '@/lib/email-service';
 
 import { requireSession } from '@/lib/session';
@@ -159,7 +160,12 @@ export async function POST(request) {
       { path: 'servicio', select: 'nombre descripcion categoria' }
     ]);
 
-    // Aviso por email de cita nueva al contratista elegido
+    // Aviso de cita nueva al contratista elegido: push (urgente si es express) y email
+    await enviarPush([contratistaId], {
+      titulo: esExpress ? '¡Servicio EXPRESS solicitado!' : 'Nueva solicitud de servicio',
+      cuerpo: `${nuevaCita.servicio?.nombre || 'Servicio'}: un cliente te lo solicitó`,
+      data: { tipo: 'cita_nueva', citaId: String(nuevaCita._id), urgente: esExpress }
+    });
     enviarNotificacionCambioEstado({
       nuevoEstado: 'solicitada',
       cita: nuevaCita,

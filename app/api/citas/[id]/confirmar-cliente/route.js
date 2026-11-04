@@ -41,6 +41,11 @@ async function confirmar(request, params) {
         usuario: session.id
       });
       await cita.save({ validateModifiedOnly: true });
+      await enviarPush([cita.contratista], {
+        titulo: 'El cliente confirmó el trabajo',
+        cuerpo: 'El cliente confirmó que el servicio quedó bien',
+        data: { tipo: 'cliente_confirmo', citaId: String(cita._id) }
+      });
     }
 
     const { cerrada, comision } = await cerrarServicioSiCorresponde(cita._id);

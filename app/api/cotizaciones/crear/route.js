@@ -7,7 +7,7 @@ import Cita from '@/models/Cita';
 import { enviarEmailCitaCotizada } from '@/lib/email-service';
 import Tecnico from '@/models/Tecnico';
 import { requireSession } from '@/lib/session';
-import { marcarCotizada } from '@/lib/citas-estado';
+import { enviarPush } from '@/lib/push';
 
 
 
@@ -143,9 +143,21 @@ export async function POST(request) {
 
     // Cotizar directo (sin técnico) nace 'enviada' y la cita pasa a 'cotizada'. Vale también para un servicio
     // directo en 'aceptada' que aún no tiene cotización aceptada (no se retrocede una cita ya contratada).
-    if (visibleAlCliente) marcarCotizada(cita);
+    const puedeCotizar = cita.estado === 'solicitada' || cita.estado === 'atendida' ||
+      (cita.estado === 'aceptada' && !cita.cotizacionAceptada);
+    if (visibleAlCliente && puedeCotizar) {
+      cita.estado = 'cotizada';
+      cita.historial.push({ estado: 'cotizada', fecha: new Date(), comentario: 'Cotización enviada al cliente' });
+    }
 
     await cita.save();
+
+    // Push: estimación del técnico -> contratista para revisar; cotización enviada -> cliente
+    await enviarPush(visibleAlCliente ? [cita.cliente?._id || cita.cliente] : [contratistaId], {
+      titulo: visibleAlCliente ? 'Tienes una cotización' : 'Estimación por revisar',
+      cuerpo: visibleAlCliente ? 'Revisa y acepta la cotización de tu servicio' : 'Un técnico envió una estimación para tu revisión',
+      data: { tipo: visibleAlCliente ? 'cotizacion_enviada' : 'cotizacion_pendiente_contratista', citaId: String(cita._id), cotizacionId: String(cotizacion._id) }
+    });
 
     if (visibleAlCliente) {
       enviarEmailCitaCotizada({

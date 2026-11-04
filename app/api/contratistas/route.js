@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 import { enviarEmailBienvenidaContratista } from '@/lib/email-service'
 import { requireSession, getSessionFromRequest } from '@/lib/session'
+import { enviarPush } from '@/lib/push'
 import { esObjectId, pick, soloTexto } from '@/lib/sanitize'
 import { relacionCon, camposPara, incorporadorDe, aplicarReglasAprobacion, SELECT_PUBLICO } from '@/lib/contratista-acceso'
 
@@ -183,6 +184,9 @@ export async function PUT(req) {
 
     const { _id: _omit, ...cambios } = data;
     const contratista = await Contratista.findByIdAndUpdate(data._id, cambios, { new: true, runValidators: true });
+    if (cambios.aprobado === true && !contratistaActual.aprobado) {
+      await enviarPush([data._id], { titulo: '¡Cuenta aprobada!', cuerpo: 'Ya puedes recibir solicitudes de servicio', data: { tipo: 'cuenta_aprobada' } });
+    }
 
     // Si cambió el incorporador, actualizar estadísticas
     if (data.incorporador !== undefined && data.incorporador !== contratistaActual.incorporador?.toString()) {

@@ -11,6 +11,7 @@ import User from '@/models/User';
 import { uploadImage } from '@/lib/cloudinary';
 import { requireSession } from '@/lib/session';
 import { enviarEmailComprobanteRecibido } from '@/lib/email-service';
+import { enviarPush } from '@/lib/push';
 import { esObjectId } from '@/lib/sanitize';
 
 
@@ -123,6 +124,13 @@ export async function POST(request) {
       monto,
       imagenUrl: subida.url,
       publicId: subida.publicId
+    });
+
+    // Push al contratista (y email a contratista y admins, no bloqueante)
+    await enviarPush([cotizacion.contratista], {
+      titulo: 'Nuevo comprobante de pago',
+      cuerpo: `El cliente subió el comprobante de ${tipo === 'total' ? 'pago total' : tipo}`,
+      data: { tipo: 'comprobante_subido', citaId: String(cita._id), cotizacionId: String(cotizacion._id) }
     });
 
     // Notificar por email al contratista y a los administradores (no bloqueante)
