@@ -32,7 +32,11 @@ const calificacionSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
-    imagenes: [{ type: String }]
+    imagenes: [{ type: String }],
+    // Moderación: una reseña abusiva se oculta (no cuenta en el promedio ni se muestra)
+    oculta: { type: Boolean, default: false },
+    motivoOculta: { type: String, trim: true },
+    ocultadaPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, {
     timestamps: true
 });

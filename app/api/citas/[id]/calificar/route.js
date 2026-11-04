@@ -91,7 +91,8 @@ export async function PUT(request, { params }) {
       if (contratista) {
         const calificacionesContratista = await Calificacion.find({
           calificado: contratista._id,
-          tipoCalificado: 'Contratista'
+          tipoCalificado: 'Contratista',
+          oculta: { $ne: true }
         });
 
         contratista.totalCalificaciones = calificacionesContratista.length;
@@ -115,7 +116,7 @@ export async function PUT(request, { params }) {
         comentario: comentarioTecnico?.trim() || ''
       }).save();
 
-      const delTecnico = await Calificacion.find({ calificado: cita.tecnico, tipoCalificado: 'Tecnico' }).select('puntaje');
+      const delTecnico = await Calificacion.find({ calificado: cita.tecnico, tipoCalificado: 'Tecnico', oculta: { $ne: true } }).select('puntaje');
       const promedio = delTecnico.reduce((acc, c) => acc + c.puntaje, 0) / delTecnico.length;
       await Tecnico.updateOne({ _id: cita.tecnico }, {
         promedioCalificacion: promedio,

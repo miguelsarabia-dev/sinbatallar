@@ -58,7 +58,7 @@ export async function GET(request) {
     if (areaId) filtro.areasCobertura = areaId;
 
     const tecnicos = await Tecnico.find(filtro)
-      .populate('user', 'nombre email telefono fotoUrl')
+      .populate('user', 'nombre email telefono fotoUrl suspendido')
       .populate('contratista', 'nombre email')
       .populate('areasCobertura', 'nombre clasificacion')
       .sort({ createdAt: -1 });

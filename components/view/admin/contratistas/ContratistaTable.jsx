@@ -1,7 +1,7 @@
 "use client";
 import { FaEdit, FaTrash, FaEye, FaWarehouse, FaPlay, FaPause, FaStar, FaTools, FaUsers } from 'react-icons/fa';
 
-export default function ContratistaTable({ contratistas, onViewDetails, onEdit, onDelete, onToggleStatus, loading }) {
+export default function ContratistaTable({ contratistas, onViewDetails, onEdit, onDelete, onToggleStatus, onToggleApproval, loading }) {
   // Obtener color basado en promedio de calificación (0-5)
   const getCalificacionColor = (promedio) => {
     if (!promedio || promedio === 0) return 'bg-gray-100 text-gray-600';
@@ -55,7 +55,7 @@ export default function ContratistaTable({ contratistas, onViewDetails, onEdit, 
                 Calificación
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Estado
+                Aprobación / Disponibilidad
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Acciones
@@ -126,10 +126,15 @@ export default function ContratistaTable({ contratistas, onViewDetails, onEdit, 
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${contratista.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                    {contratista.activo ? 'Activo' : 'Inactivo'}
-                  </span>
+                  <div className="flex flex-col gap-1 items-start">
+                    <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${contratista.aprobado ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                      {contratista.aprobado ? 'Aprobado' : 'En revisión'}
+                    </span>
+                    <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${contratista.activo ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
+                      {contratista.activo ? 'Disponible' : 'No disponible'}
+                    </span>
+                    {contratista.suspendido && <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">Suspendido</span>}
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <div className="flex justify-end items-center gap-2">
@@ -141,12 +146,21 @@ export default function ContratistaTable({ contratistas, onViewDetails, onEdit, 
                       <FaEye size={16} />
                     </button>
                     <button
+                      onClick={() => onToggleApproval(contratista)}
+                      className={`px-2 py-1 text-xs rounded border transition-colors ${contratista.aprobado
+                        ? 'border-yellow-400 text-yellow-700 hover:bg-yellow-50'
+                        : 'border-blue-500 text-blue-700 hover:bg-blue-50'}`}
+                      title={contratista.aprobado ? 'Quitar aprobación' : 'Aprobar (se validan los datos requeridos)'}
+                    >
+                      {contratista.aprobado ? 'Quitar aprobación' : 'Aprobar'}
+                    </button>
+                    <button
                       onClick={() => onToggleStatus(contratista._id, contratista.activo)}
                       className={`p-2 rounded transition-colors ${contratista.activo
                         ? 'text-orange-600 hover:text-orange-900 hover:bg-orange-50'
                         : 'text-green-600 hover:text-green-900 hover:bg-green-50'
                         }`}
-                      title={contratista.activo ? 'Desactivar' : 'Activar'}
+                      title={contratista.activo ? 'Disponibilidad: pausar' : 'Disponibilidad: activar'}
                     >
                       {contratista.activo ? <FaPause size={16} /> : <FaPlay size={16} />}
                     </button>
@@ -193,7 +207,10 @@ export default function ContratistaTable({ contratistas, onViewDetails, onEdit, 
                     </span>
                     <span className={`inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded-full ${contratista.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                       }`}>
-                      {contratista.activo ? 'Activo' : 'Inactivo'}
+                      {contratista.activo ? 'Disponible' : 'No disponible'}
+                    </span>
+                    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded-full ${contratista.aprobado ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                      {contratista.aprobado ? 'Aprobado' : 'En revisión'}
                     </span>
                   </div>
                 </div>
@@ -219,13 +236,19 @@ export default function ContratistaTable({ contratistas, onViewDetails, onEdit, 
                 Ver
               </button>
               <button
+                onClick={() => onToggleApproval(contratista)}
+                className="flex-1 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-sm"
+              >
+                {contratista.aprobado ? 'Quitar aprobación' : 'Aprobar'}
+              </button>
+              <button
                 onClick={() => onToggleStatus(contratista._id, contratista.activo)}
                 className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm ${contratista.activo
                   ? 'bg-orange-50 text-orange-600 hover:bg-orange-100'
                   : 'bg-green-50 text-green-600 hover:bg-green-100'
                   }`}
               >
-                {contratista.activo ? <><FaPause size={14} />Desactivar</> : <><FaPlay size={14} />Activar</>}
+                {contratista.activo ? <><FaPause size={14} />Pausar</> : <><FaPlay size={14} />Activar</>}
               </button>
               <button
                 onClick={() => onEdit(contratista)}

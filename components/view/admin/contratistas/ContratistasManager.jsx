@@ -107,6 +107,37 @@ export default function ContratistasManager({
     );
   };
 
+  // Aprobar / quitar aprobación. Aprobar valida en el servidor los datos escritos requeridos (400 con `faltantes`).
+  const NOMBRES_DATOS = { nombre: 'nombre', email: 'email', telefono: 'teléfono', curp: 'CURP', direccion: 'dirección', especialidad: 'especialidad' };
+  const handleToggleApproval = (contratista) => {
+    const aprobar = !contratista.aprobado;
+    showConfirm(
+      aprobar
+        ? `¿Aprobar a ${contratista.nombre}? Podrá recibir solicitudes de servicio.`
+        : `¿Quitar la aprobación a ${contratista.nombre}? Dejará de recibir solicitudes.`,
+      async () => {
+        try {
+          const res = await fetch(`/api/contratistas/${contratista._id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ aprobado: aprobar })
+          });
+          const data = await res.json().catch(() => null);
+          if (!res.ok) {
+            const faltan = data?.faltantes?.map(f => NOMBRES_DATOS[f] || f).join(', ');
+            showError(faltan ? `Faltan datos requeridos: ${faltan}. Complétalos al editar al contratista.` : (data?.error || 'No se pudo cambiar la aprobación'));
+            return;
+          }
+          showSuccess(aprobar ? 'Contratista aprobado' : 'Aprobación retirada');
+          fetchContratistas(searchParams, pagination.page);
+        } catch {
+          showError('Error de conexión');
+        }
+      },
+      aprobar ? 'Aprobar contratista' : 'Quitar aprobación'
+    );
+  };
+
   const handleUpdateContratista = async (contratistaData) => {
     await onUpdateContratista(contratistaData);
     setShowEditForm(false);
@@ -144,6 +175,7 @@ export default function ContratistasManager({
         onEdit={handleEdit}
         onDelete={handleDelete}
         onToggleStatus={handleToggleStatus}
+        onToggleApproval={handleToggleApproval}
         loading={loading}
       />
 

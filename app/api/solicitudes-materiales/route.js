@@ -43,6 +43,7 @@ export async function GET(request) {
       if (estados.length) filtro.estado = estados.length === 1 ? estados[0] : { $in: estados };
     }
     if (esObjectId(searchParams.get('citaId'))) filtro.cita = searchParams.get('citaId');
+    if (session.role === 'admin' && esObjectId(searchParams.get('ferreteriaId'))) filtro.ferreteria = searchParams.get('ferreteriaId');
 
     const solicitudes = await SolicitudMaterial.find(filtro)
       .sort({ createdAt: -1 })
