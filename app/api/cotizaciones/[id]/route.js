@@ -8,6 +8,7 @@ import Contratista from '@/models/Contratista';
 import Comprobante from '@/models/Comprobante';
 import { enviarEmailsCitaAceptada, enviarEmailsCitaCancelada, enviarEmailCitaCotizada } from '@/lib/email-service';
 import { requireSession } from '@/lib/session';
+import { marcarCotizada } from '@/lib/citas-estado';
 
 import Tecnico from '@/models/Tecnico';
 import { esObjectId } from '@/lib/sanitize';
@@ -306,8 +307,7 @@ export async function PATCH(request, { params }) {
       // Ahora es visible al cliente: avanzar la cita y notificar
       const cita = await Cita.findById(cotizacion.cita?._id || cotizacion.cita);
       if (cita) {
-        if (cita.estado === 'solicitada' || cita.estado === 'atendida') {
-          cita.estado = 'cotizada';
+        if (marcarCotizada(cita)) {
           await cita.save();
         }
         await cita.populate('cliente', 'nombre email telefono');
@@ -364,6 +364,14 @@ export async function PATCH(request, { params }) {
         cita.cotizacionAceptada = cotizacion._id;
         // Cambiar estado a verificando_pago para que el contratista apruebe
         cita.estado = 'verificando_pago';
+        cita.historial.push({
+          estado: 'verificando_pago',
+          fecha: new Date(),
+          comentario: cotizacion.modalidadPago === 'total'
+            ? 'Cliente aceptó la cotización y declaró el pago total. Pendiente de verificación'
+            : 'Cliente aceptó la cotización y declaró el anticipo. Pendiente de verificación',
+          usuario: session.id
+        });
         await cita.save();
 
         // Calcular costo total de materiales

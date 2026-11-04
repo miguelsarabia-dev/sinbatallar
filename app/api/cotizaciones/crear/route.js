@@ -7,6 +7,7 @@ import Cita from '@/models/Cita';
 import { enviarEmailCitaCotizada } from '@/lib/email-service';
 import Tecnico from '@/models/Tecnico';
 import { requireSession } from '@/lib/session';
+import { marcarCotizada } from '@/lib/citas-estado';
 
 
 
@@ -142,12 +143,7 @@ export async function POST(request) {
 
     // Cotizar directo (sin técnico) nace 'enviada' y la cita pasa a 'cotizada'. Vale también para un servicio
     // directo en 'aceptada' que aún no tiene cotización aceptada (no se retrocede una cita ya contratada).
-    const puedeCotizar = cita.estado === 'solicitada' || cita.estado === 'atendida' ||
-      (cita.estado === 'aceptada' && !cita.cotizacionAceptada);
-    if (visibleAlCliente && puedeCotizar) {
-      cita.estado = 'cotizada';
-      cita.historial.push({ estado: 'cotizada', fecha: new Date(), comentario: 'Cotización enviada al cliente' });
-    }
+    if (visibleAlCliente) marcarCotizada(cita);
 
     await cita.save();
 
