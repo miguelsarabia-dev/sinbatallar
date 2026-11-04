@@ -14,6 +14,8 @@ import { enviarNotificacionCambioEstado, enviarEmailComprobanteRechazado } from 
 import { requireSession } from '@/lib/session';
 import { cerrarServicioSiCorresponde } from '@/lib/comisiones';
 import { crearSolicitudesAutomaticas } from '@/lib/solicitudes-material';
+import { enviarPush } from '@/lib/push';
+
 
 const TIPOS_VALIDOS = ['anticipo', 'saldo', 'total'];
 
@@ -80,6 +82,11 @@ export async function PATCH(request, { params }) {
       );
 
       if (cita) {
+        await enviarPush([cita.cliente], {
+          titulo: 'Comprobante rechazado',
+          cuerpo: motivoLimpio,
+          data: { tipo: 'pago_rechazado', citaId: String(cita._id), cotizacionId: String(cotizacion._id) }
+        });
         const citaPoblada = await Cita.findById(cita._id)
           .populate('cliente', 'nombre email')
           .populate('servicio', 'nombre');
@@ -145,6 +152,14 @@ export async function PATCH(request, { params }) {
         servicio: citaPoblada.servicio,
         cotizacion
       }).catch(err => console.error('Error enviando email en_progreso:', err));
+    }
+
+    if (cita) {
+      await enviarPush([cita.cliente], {
+        titulo: 'Pago verificado',
+        cuerpo: tipo === 'saldo' ? 'Tu pago final fue verificado' : 'Tu pago fue verificado y tu servicio está en marcha',
+        data: { tipo: 'pago_verificado', citaId: String(cita._id), cotizacionId: String(cotizacion._id) }
+      });
     }
 
     // saldo verificado (o pago total ya confirmado por el cliente) -> cierre + comisión

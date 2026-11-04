@@ -1,5 +1,7 @@
 // app/api/servicios-programables/solicitar/route.js
 import { NextResponse } from 'next/server';
+import { enviarPush } from '@/lib/push';
+
 import { requireSession } from '@/lib/session';
 import { connectDB } from '@/lib/mongoose';
 import Cita from '@/models/Cita';
@@ -140,6 +142,11 @@ export async function POST(request) {
     });
 
     await nuevaCita.save();
+    await enviarPush([contratistaId], {
+      titulo: 'Nueva solicitud de servicio',
+      cuerpo: 'Un cliente te solicitó un servicio programado',
+      data: { tipo: 'cita_nueva', citaId: String(nuevaCita._id) }
+    });
 
     await nuevaCita.populate([
       { path: 'cliente', select: 'nombre email telefono' },
