@@ -55,7 +55,7 @@ export async function GET(request) {
     }
 
     if (activa === 'true') {
-      filter.estado = { $nin: ['completada', 'cancelada'] };
+      filter.estado = { $nin: ['completada', 'cancelada', 'rechazada'] };
     }
 
     if (fecha) {

@@ -41,7 +41,7 @@ const citaSchema = new mongoose.Schema({
   // Estado de la cita
   estado: {
     type: String,
-    enum: ['solicitada', 'atendida', 'cotizada', 'aceptada', 'en_progreso', 'completada', 'cancelada', 'verificando_pago'],
+    enum: ['solicitada', 'atendida', 'cotizada', 'aceptada', 'en_progreso', 'completada', 'cancelada', 'verificando_pago', 'rechazada'],
     default: 'solicitada'
   },
 
@@ -55,6 +55,8 @@ const citaSchema = new mongoose.Schema({
 
   // Razón de cancelación
   motivoCancelacion: { type: String, trim: true },
+  // Motivo cuando el contratista rechaza la solicitud (estado 'rechazada')
+  motivoRechazo: { type: String, trim: true },
 
   // Relación con cotización
   cotizaciones: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Cotizacion' }],
