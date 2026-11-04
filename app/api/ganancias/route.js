@@ -11,6 +11,7 @@ import Tecnico from '@/models/Tecnico';
 import Aperturador from '@/models/Aperturador';
 import Incorporador from '@/models/Incorporador';
 import { requireSession } from '@/lib/session';
+import { perfilIdDe } from '@/lib/perfiles';
 import { getFinancialConfig, gananciaDeCita } from '@/lib/comisiones';
 
 const ROLES = ['contratista', 'tecnico', 'admin', 'aperturador', 'incorporador'];
@@ -63,11 +64,9 @@ export async function GET(request) {
       tecnicoId = tecnico._id;
       filtros['distribucion.tecnico.id'] = tecnicoId;
     } else if (role === 'aperturador') {
-      const doc = await Aperturador.findOne({ user: session.id }).select('_id');
-      filtros['distribucion.aperturador.id'] = doc?._id || session.id;
+      filtros['distribucion.aperturador.id'] = (await perfilIdDe(session)) || session.id;
     } else if (role === 'incorporador') {
-      const doc = await Incorporador.findOne({ user: session.id }).select('_id');
-      filtros['distribucion.incorporador.id'] = doc?._id || session.id;
+      filtros['distribucion.incorporador.id'] = (await perfilIdDe(session)) || session.id;
     }
 
     const campo = CAMPO_MONTO[role];

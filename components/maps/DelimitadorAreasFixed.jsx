@@ -323,8 +323,11 @@ const DelimitadorAreasFixed = ({ onAreaConfirmada, onCancel, areasExistentes = [
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex flex-col items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-7xl h-[90vh] flex flex-col">
+    // El overlay hace scroll: si el encabezado (formulario, avisos, leyenda) es alto o la pantalla es corta, el
+    // modal crece y se puede bajar hasta el mapa y los botones. Antes tenía altura fija (90vh) sin scroll y se cortaba.
+    <div className="fixed inset-0 z-50 bg-black bg-opacity-50 overflow-y-auto">
+      <div className="min-h-full flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-7xl flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
@@ -513,7 +516,7 @@ const DelimitadorAreasFixed = ({ onAreaConfirmada, onCancel, areasExistentes = [
         </div>
 
         {/* Contenido principal: Mapa y contratistas */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="h-[60vh] min-h-[420px] flex overflow-hidden">
           {/* Mapa */}
           <div className="flex-1 relative">
             {cargandoUbicacion && (
@@ -788,6 +791,7 @@ const DelimitadorAreasFixed = ({ onAreaConfirmada, onCancel, areasExistentes = [
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

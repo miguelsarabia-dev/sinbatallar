@@ -117,6 +117,47 @@ test('todo handler no público exige sesión, o su ruta está restringida por ro
   assert.deepEqual([...SOLO_TOKEN].filter(k => !soloToken.has(k)), [], 'entradas viejas en SOLO_TOKEN');
 });
 
+// Regresión: reglas genéricas (p. ej. DELETE /users/:id solo admin) tapaban rutas específicas ('direcciones' contaba como :id)
+test('un handler no puede quedar bloqueado por la política para un rol que él mismo admite', () => {
+  const bloqueados = [];
+  for (const archivo of rutas()) {
+    const src = fs.readFileSync(archivo, 'utf8');
+    const url = urlDe(archivo);
+    const locales = {};
+    for (const m of src.matchAll(/^(?:async )?function (\w+)\([^)]*\)\s*\{([\s\S]*?)^\}/gm)) locales[m[1]] = m[2];
+    for (const parte of src.split(/^export async function /m).slice(1)) {
+      const metodo = parte.match(/^(\w+)/)[1];
+      if (!METODOS.includes(metodo)) continue;
+      const cuerpo = parte.split(/^\}/m)[0];
+      const textos = [cuerpo, ...Object.entries(locales).filter(([n]) => new RegExp(`\\b${n}\\(`).test(cuerpo)).map(([, c]) => c)];
+      const roles = new Set();
+      for (const texto of textos) {
+        for (const m of texto.matchAll(/requireSession\([^,)]+,\s*\[([^\]]*)\]/g)) {
+          for (const r of m[1].matchAll(/'(\w+)'/g)) roles.add(r[1]);
+        }
+      }
+      for (const rol of roles) {
+        const q = url === '/api/areas' ? 'activo=true' : '';
+        if (decidirAcceso(metodo, url, new URLSearchParams(q), rol) !== 200) bloqueados.push(`${metodo} ${url} bloquea al rol '${rol}' que el handler admite`);
+      }
+    }
+  }
+  assert.deepEqual(bloqueados, []);
+});
+
+test('direcciones del cliente: DELETE y demás pasan para cliente y no para otros roles', () => {
+  const con = (m, rol) => decidirAcceso(m, '/api/users/direcciones', new URLSearchParams(), rol);
+  for (const m of ['GET', 'POST', 'PUT', 'DELETE']) {
+    assert.equal(con(m, 'cliente'), 200, m);
+    assert.equal(con(m, 'contratista'), 403, m);
+    assert.equal(con(m, null), 401, m);
+  }
+  assert.equal(decidirAcceso('PUT', '/api/users/direcciones/principal', new URLSearchParams(), 'cliente'), 200);
+  // y DELETE /users/:id sigue siendo solo admin
+  assert.equal(decidirAcceso('DELETE', '/api/users/507f1f77bcf86cd799439011', new URLSearchParams(), 'cliente'), 403);
+  assert.equal(decidirAcceso('DELETE', '/api/users/507f1f77bcf86cd799439011', new URLSearchParams(), 'admin'), 200);
+});
+
 test('rutas del flujo de técnico y cliente: 401 sin token, 403 con el rol equivocado', () => {
   const sin = (m, p) => decidirAcceso(m, p, new URLSearchParams(), null);
   const con = (m, p, rol) => decidirAcceso(m, p, new URLSearchParams(), rol);

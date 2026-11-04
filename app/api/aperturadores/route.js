@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/session';
+import { buscarPerfilId } from '@/lib/perfiles';
 import { esObjectId } from '@/lib/sanitize';
 import { perfilIdDe } from '@/lib/perfiles';
 
@@ -24,7 +25,8 @@ export async function GET(request) {
     }
     
     if (userId) {
-      const aperturador = await Aperturador.findOne({ user: userId })
+      const perfilId = await buscarPerfilId(Aperturador, userId);
+      const aperturador = await Aperturador.findById(perfilId)
         .populate('user', 'nombre email telefono')
         .populate('areasCreadas');
       

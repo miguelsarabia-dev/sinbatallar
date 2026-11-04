@@ -68,12 +68,6 @@ export async function POST(request, { params }) {
 
     await cita.save();
 
-    await enviarPush([tecnico.user?._id || tecnico.user], {
-      titulo: 'Te asignaron un servicio',
-      cuerpo: 'Revisa los detalles en tus servicios',
-      data: { tipo: 'tecnico_asignado', citaId: String(cita._id) }
-    });
-
     const citaActualizada = await Cita.findById(id)
       .populate('cliente', 'nombre email telefono')
       .populate('contratista', 'nombre email telefono')
