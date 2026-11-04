@@ -83,6 +83,7 @@ const citaSchema = new mongoose.Schema({
 
   // Flags de calificación
   calificadoContratista: { type: Boolean, default: false },
+  calificadoTecnico: { type: Boolean, default: false },
 
   // Información de pago
   pagado: { type: Boolean, default: false },

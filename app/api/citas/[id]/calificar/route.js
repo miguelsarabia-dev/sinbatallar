@@ -4,6 +4,7 @@ import { connectDB } from '@/lib/mongoose';
 import Cita from '@/models/Cita';
 import Contratista from '@/models/Contratista';
 import Calificacion from '@/models/Calificacion';
+import Tecnico from '@/models/Tecnico';
 import { requireSession } from '@/lib/session';
 
 export async function PUT(request, { params }) {
@@ -24,8 +25,16 @@ export async function PUT(request, { params }) {
     const { id } = await params;
     const {
       puntajeContratista,
-      comentarioContratista
+      comentarioContratista,
+      puntajeTecnico,
+      comentarioTecnico
     } = body;
+
+    // El puntaje del técnico es opcional, pero si llega debe ser 1-5
+    const calificaTecnico = puntajeTecnico !== undefined && puntajeTecnico !== null && puntajeTecnico !== '';
+    if (calificaTecnico && (!Number.isInteger(Number(puntajeTecnico)) || Number(puntajeTecnico) < 1 || Number(puntajeTecnico) > 5)) {
+      return NextResponse.json({ error: 'La calificación del técnico debe ser entre 1 y 5' }, { status: 400 });
+    }
 
     if (!puntajeContratista || puntajeContratista < 1 || puntajeContratista > 5) {
       return NextResponse.json({
@@ -94,11 +103,34 @@ export async function PUT(request, { params }) {
     }
 
     // Actualizar flags en la cita
+    // Calificación del técnico (opcional): una sola vez por cita
+    let tecnicoCalificado = false;
+    if (calificaTecnico && cita.tecnico && !cita.calificadoTecnico) {
+      await new Calificacion({
+        cita: cita._id,
+        cliente: clienteId,
+        calificado: cita.tecnico,
+        tipoCalificado: 'Tecnico',
+        puntaje: parseInt(puntajeTecnico),
+        comentario: comentarioTecnico?.trim() || ''
+      }).save();
+
+      const delTecnico = await Calificacion.find({ calificado: cita.tecnico, tipoCalificado: 'Tecnico' }).select('puntaje');
+      const promedio = delTecnico.reduce((acc, c) => acc + c.puntaje, 0) / delTecnico.length;
+      await Tecnico.updateOne({ _id: cita.tecnico }, {
+        promedioCalificacion: promedio,
+        totalCalificaciones: delTecnico.length,
+        'estadisticas.calificacionPromedio': promedio
+      });
+      tecnicoCalificado = true;
+    }
+
     const citaActualizada = await Cita.findByIdAndUpdate(
       id,
       {
         $set: {
-          calificadoContratista: true
+          calificadoContratista: true,
+          ...(tecnicoCalificado ? { calificadoTecnico: true } : {})
         }
       },
       { new: true }
