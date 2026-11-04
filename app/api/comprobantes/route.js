@@ -11,6 +11,8 @@ import User from '@/models/User';
 import { uploadImage } from '@/lib/cloudinary';
 import { requireSession } from '@/lib/session';
 import { enviarEmailComprobanteRecibido } from '@/lib/email-service';
+import { enviarPush } from '@/lib/push';
+
 
 const TIPOS = ['anticipo', 'saldo', 'total'];
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -123,6 +125,13 @@ export async function POST(request) {
       publicId: subida.publicId
     });
 
+    // Push al contratista (y email a contratista y admins, no bloqueante)
+    await enviarPush([cotizacion.contratista], {
+      titulo: 'Nuevo comprobante de pago',
+      cuerpo: `El cliente subió el comprobante de ${tipo === 'total' ? 'pago total' : tipo}`,
+      data: { tipo: 'comprobante_subido', citaId: String(cita._id), cotizacionId: String(cotizacion._id) }
+    });
+
     // Notificar por email al contratista y a los administradores (no bloqueante)
     (async () => {
       const citaPoblada = await Cita.findById(cita._id)
@@ -155,7 +164,23 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const cotizacionId = searchParams.get('cotizacionId');
+
+    // Historial de pagos del cliente: sin cotizacionId devuelve todos sus comprobantes, el más reciente primero
+    if (!cotizacionId && session.role === 'cliente') {
+      const propios = await Comprobante.find({ subidoPor: session.id })
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .populate({ path: 'cita', select: 'servicio estado', populate: { path: 'servicio', select: 'nombre' } })
+        .populate('cotizacion', 'total');
+      return NextResponse.json(propios.map(c => ({
+        ...serializar(c),
+        cita: c.cita ? { _id: c.cita._id, servicio: { nombre: c.cita.servicio?.nombre }, estado: c.cita.estado } : null,
+        cotizacion: c.cotizacion ? { _id: c.cotizacion._id, total: c.cotizacion.total } : null
+      })));
+    }
+
     if (!cotizacionId) return bad('cotizacionId es requerido');
+    if (!esObjectId(cotizacionId)) return bad('cotizacionId inválido');
 
     const cotizacion = await Cotizacion.findById(cotizacionId).select('cita contratista');
     if (!cotizacion) return bad('Cotización no encontrada', 404);
