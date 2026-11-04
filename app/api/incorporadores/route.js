@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/session';
+import { buscarPerfilId } from '@/lib/perfiles';
 import { esObjectId } from '@/lib/sanitize';
 import { perfilIdDe } from '@/lib/perfiles';
 
@@ -31,7 +32,7 @@ export async function GET(request) {
     }
     
     if (userId) {
-      let incorporador = await Incorporador.findOne({ user: userId })
+      let incorporador = await Incorporador.findById(await buscarPerfilId(Incorporador, userId))
         .populate('user', 'nombre email telefono foto')
         .populate({
           path: 'contratistasIncorporados',

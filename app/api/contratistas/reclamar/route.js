@@ -3,6 +3,7 @@ import Contratista from '@/models/Contratista';
 import Incorporador from '@/models/Incorporador';
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/session';
+import { perfilIdDe } from '@/lib/perfiles';
 
 // POST: Reclamar un contratista disponible (sin incorporador)
 export async function POST(request) {
@@ -22,7 +23,8 @@ export async function POST(request) {
     }
 
     // Obtener el incorporador del usuario actual
-    const incorporador = await Incorporador.findOne({ user: userId });
+    const perfilId = await perfilIdDe(session);
+    const incorporador = perfilId ? await Incorporador.findById(perfilId) : null;
 
     if (!incorporador) {
       return NextResponse.json(
