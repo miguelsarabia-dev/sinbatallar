@@ -12,6 +12,7 @@ import { uploadImage } from '@/lib/cloudinary';
 import { requireSession } from '@/lib/session';
 import { enviarEmailComprobanteRecibido } from '@/lib/email-service';
 import { enviarPush } from '@/lib/push';
+import { esObjectId } from '@/lib/sanitize';
 
 
 const TIPOS = ['anticipo', 'saldo', 'total'];
