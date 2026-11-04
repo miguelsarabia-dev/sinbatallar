@@ -1,6 +1,6 @@
 // app/api/incorporaciones/route.js
 // GET: incorporaciones del incorporador (token), derivadas de sus contratistas. Admin: todas (?incorporadorId=).
-//   [{ _id (= id del contratista), estado, contratista:{_id,nombre,email}, documentos:{requeridos,presentes}, createdAt }]
+//   [{ _id (= id del contratista), estado, contratista:{_id,nombre,email}, datos:{requeridos,presentes,faltantes}, evidencias, createdAt }]
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Contratista from '@/models/Contratista';
@@ -8,7 +8,7 @@ import DocumentoIncorporacion from '@/models/DocumentoIncorporacion';
 import { requireSession } from '@/lib/session';
 import { perfilIdDe } from '@/lib/perfiles';
 import { esObjectId } from '@/lib/sanitize';
-import { estadoIncorporacion, DOCUMENTOS_REQUERIDOS } from '@/lib/incorporaciones';
+import { estadoIncorporacion, datosIncorporacion } from '@/lib/incorporaciones';
 
 export async function GET(request) {
   try {
@@ -27,24 +27,25 @@ export async function GET(request) {
     }
 
     const contratistas = await Contratista.find(filtro)
-      .select('nombre email aprobado estatus createdAt')
+      .select('nombre email telefono curp direccion especialidad aprobado estatus createdAt')
       .sort({ createdAt: -1 })
       .limit(300);
 
-    const docs = await DocumentoIncorporacion.find({ contratista: { $in: contratistas.map(c => c._id) } }).select('contratista tipo');
-    const tiposPorContratista = {};
-    docs.forEach(d => { (tiposPorContratista[String(d.contratista)] ||= new Set()).add(d.tipo); });
+    // Los documentos son evidencia opcional: solo se cuentan, no condicionan el estado
+    const conteo = await DocumentoIncorporacion.aggregate([
+      { $match: { contratista: { $in: contratistas.map(c => c._id) } } },
+      { $group: { _id: '$contratista', total: { $sum: 1 } } }
+    ]);
+    const evidencias = Object.fromEntries(conteo.map(c => [String(c._id), c.total]));
 
-    return NextResponse.json(contratistas.map(c => {
-      const tipos = [...(tiposPorContratista[String(c._id)] || [])];
-      return {
-        _id: c._id,
-        estado: estadoIncorporacion(c, tipos),
-        contratista: { _id: c._id, nombre: c.nombre, email: c.email },
-        documentos: { requeridos: DOCUMENTOS_REQUERIDOS, presentes: tipos },
-        createdAt: c.createdAt
-      };
-    }));
+    return NextResponse.json(contratistas.map(c => ({
+      _id: c._id,
+      estado: estadoIncorporacion(c),
+      contratista: { _id: c._id, nombre: c.nombre, email: c.email },
+      datos: datosIncorporacion(c),
+      evidencias: evidencias[String(c._id)] || 0,
+      createdAt: c.createdAt
+    })));
   } catch (error) {
     console.error('Error en GET /api/incorporaciones:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });

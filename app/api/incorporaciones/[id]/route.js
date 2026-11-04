@@ -4,7 +4,7 @@ import { connectDB } from '@/lib/mongoose';
 import DocumentoIncorporacion from '@/models/DocumentoIncorporacion';
 import { requireSession } from '@/lib/session';
 import { esObjectId } from '@/lib/sanitize';
-import { estadoIncorporacion, contratistaGestionable, DOCUMENTOS_REQUERIDOS } from '@/lib/incorporaciones';
+import { estadoIncorporacion, contratistaGestionable, datosIncorporacion } from '@/lib/incorporaciones';
 
 export async function GET(request, { params }) {
   try {
@@ -17,12 +17,13 @@ export async function GET(request, { params }) {
     const contratista = await contratistaGestionable(session, id);
     if (!contratista) return NextResponse.json({ error: 'Incorporación no encontrada' }, { status: 404 });
 
-    const tipos = [...new Set((await DocumentoIncorporacion.find({ contratista: id }).select('tipo')).map(d => d.tipo))];
+    const evidencias = await DocumentoIncorporacion.countDocuments({ contratista: id });
     return NextResponse.json({
       _id: contratista._id,
-      estado: estadoIncorporacion(contratista, tipos),
+      estado: estadoIncorporacion(contratista),
       contratista: { _id: contratista._id, nombre: contratista.nombre, email: contratista.email, aprobado: !!contratista.aprobado },
-      documentos: { requeridos: DOCUMENTOS_REQUERIDOS, presentes: tipos },
+      datos: datosIncorporacion(contratista),
+      evidencias,
       createdAt: contratista.createdAt
     });
   } catch (error) {

@@ -1,4 +1,5 @@
 // app/api/incorporaciones/[id]/documentos/route.js (id = _id del contratista)
+// Evidencia OPCIONAL (el estado de la incorporación depende de los datos escritos, no de estos archivos).
 // POST multipart: tipo (ine|curp|comprobante_domicilio|otro) + archivo (campo `archivo`, `documento`, `imagen` o `file`),
 //   imagen o PDF ≤ 8 MB. GET: lista con URL firmada temporal (10 min). Solo incorporador dueño o admin.
 import { NextResponse } from 'next/server';
@@ -7,7 +8,7 @@ import DocumentoIncorporacion from '@/models/DocumentoIncorporacion';
 import { requireSession } from '@/lib/session';
 import { esObjectId } from '@/lib/sanitize';
 import { uploadDocumento, urlDocumentoFirmada } from '@/lib/cloudinary';
-import { estadoIncorporacion, contratistaGestionable, TIPOS_DOCUMENTO, DOCUMENTOS_REQUERIDOS } from '@/lib/incorporaciones';
+import { estadoIncorporacion, contratistaGestionable, datosIncorporacion, TIPOS_DOCUMENTO } from '@/lib/incorporaciones';
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const MIME = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
@@ -75,15 +76,10 @@ export async function POST(request, { params }) {
       bytes: subida.bytes
     });
 
-    const tipos = [...new Set((await DocumentoIncorporacion.find({ contratista: id }).select('tipo')).map(d => d.tipo))];
     return NextResponse.json({
       success: true,
       documento: serializar(doc),
-      incorporacion: {
-        _id: contratista._id,
-        estado: estadoIncorporacion(contratista, tipos),
-        documentos: { requeridos: DOCUMENTOS_REQUERIDOS, presentes: tipos }
-      }
+      incorporacion: { _id: contratista._id, estado: estadoIncorporacion(contratista), datos: datosIncorporacion(contratista) }
     }, { status: 201 });
   } catch (error) {
     console.error('Error en POST documentos de incorporación:', error);

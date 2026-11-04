@@ -169,7 +169,7 @@ export async function PUT(req) {
     if (!relacion) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     let data = pick(body, camposPara(relacion));
     const reglas = aplicarReglasAprobacion(relacion, contratistaActual, data);
-    if (reglas.error) return NextResponse.json({ error: reglas.error.message }, { status: reglas.error.status });
+    if (reglas.error) return NextResponse.json({ error: reglas.error.message, ...(reglas.error.faltantes ? { faltantes: reglas.error.faltantes } : {}) }, { status: reglas.error.status });
     data = reglas.data;
     data._id = body._id;
 
