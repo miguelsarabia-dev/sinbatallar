@@ -125,6 +125,9 @@ export async function GET(request) {
 
         const obj = cita.toObject();
         obj.areaId = areaId || null;
+        // Express sin atender: sigue 'solicitada' pasados 30 min
+        obj.urgenteSinAtender = !!cita.esExpress && cita.estado === 'solicitada' &&
+          Date.now() - new Date(cita.createdAt).getTime() > 30 * 60 * 1000;
 
         const esDueno = session?.role === 'contratista' && String(cita.contratista?._id || '') === session.id;
         const esSuTecnico = session?.role === 'tecnico' && !!tecnicoSesionId && String(cita.tecnico?._id || '') === tecnicoSesionId;
@@ -146,6 +149,11 @@ export async function GET(request) {
         return obj;
       })
     );
+
+    // Para contratista y técnico, las express (urgentes) primero; el resto conserva el orden por fecha
+    if (session.role === 'contratista' || session.role === 'tecnico') {
+      citasConArea.sort((a, b) => (b.esExpress ? 1 : 0) - (a.esExpress ? 1 : 0));
+    }
 
     return NextResponse.json(citasConArea);
 
