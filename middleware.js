@@ -1,7 +1,7 @@
 // middleware.js
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
-import { evaluarPolitica } from '@/lib/policy';
+import { decidirAcceso } from '@/lib/policy';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || ''
@@ -62,15 +62,12 @@ export async function middleware(request) {
     const role = payload ? (payload.role || payload.userType) : null;
     const normalizado = role === 'user' ? 'cliente' : role;
 
-    const decision = evaluarPolitica(request.method, pathname, request.nextUrl.searchParams, normalizado);
+    const estado = decidirAcceso(request.method, pathname, request.nextUrl.searchParams, normalizado);
 
-    if (decision === 'public') {
-      return addCorsHeaders(request, NextResponse.next());
-    }
-    if (!payload) {
+    if (estado === 401) {
       return addCorsHeaders(request, NextResponse.json({ error: 'No autenticado' }, { status: 401 }));
     }
-    if (decision === 'forbidden') {
+    if (estado === 403) {
       return addCorsHeaders(request, NextResponse.json({ error: 'No autorizado' }, { status: 403 }));
     }
     return addCorsHeaders(request, NextResponse.next());
