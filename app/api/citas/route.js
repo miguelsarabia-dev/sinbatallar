@@ -208,6 +208,7 @@ export async function POST(request) {
       imagenesProblema,
       ubicacion,
       fechaProgramada: fechaProgramada ? new Date(fechaProgramada) : null,
+      esExpress: formData.get('esExpress') === 'true',
       estado: 'solicitada'
     });
 

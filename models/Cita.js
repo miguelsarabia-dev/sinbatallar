@@ -31,6 +31,9 @@ const citaSchema = new mongoose.Schema({
     zona: { type: mongoose.Schema.Types.ObjectId, ref: 'Area' }
   },
 
+  // Servicio urgente (se prioriza y alerta si nadie lo atiende)
+  esExpress: { type: Boolean, default: false },
+
   // Estado de la cita
   estado: {
     type: String,

@@ -5,6 +5,7 @@ import Tecnico from '@/models/Tecnico';
 import User from '@/models/User';
 import Contratista from '@/models/Contratista';
 import { hashPassword } from '@/lib/auth';
+import Cita from '@/models/Cita';
 import { requireSession, getSessionFromRequest } from '@/lib/session';
 import { esObjectId, pick } from '@/lib/sanitize';
 
@@ -62,7 +63,20 @@ export async function GET(request) {
       .populate('areasCobertura', 'nombre clasificacion')
       .sort({ createdAt: -1 });
 
-    return NextResponse.json(tecnicos);
+    // Carga actual: citas aceptadas o en progreso por técnico
+    const activas = await Cita.aggregate([
+      { $match: { tecnico: { $in: tecnicos.map(t => t._id) }, estado: { $in: ['aceptada', 'en_progreso'] } } },
+      { $group: { _id: '$tecnico', total: { $sum: 1 } } }
+    ]);
+    const activasPorTecnico = Object.fromEntries(activas.map(a => [String(a._id), a.total]));
+
+    return NextResponse.json(tecnicos.map(t => ({
+      ...t.toObject(),
+      disponible: t.disponible !== false,
+      citasActivas: activasPorTecnico[String(t._id)] || 0,
+      promedioCalificacion: t.promedioCalificacion || 0,
+      totalCalificaciones: t.totalCalificaciones || 0
+    })));
   } catch (error) {
     console.error('Error en GET /api/tecnicos:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
