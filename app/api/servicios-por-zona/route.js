@@ -1,6 +1,7 @@
 import { connectDB } from '@/lib/mongoose';
 import Area from '@/models/Area';
 import { NextResponse } from 'next/server';
+import DemandaFueraZona from '@/models/DemandaFueraZona';
 
 // GET: Obtener servicios disponibles basados en la ubicación del usuario
 export async function GET(request) {
@@ -39,6 +40,19 @@ export async function GET(request) {
     });
 
     if (!area) {
+      // Demanda sin cobertura: se agrega por celda de ~1 km para que los aperturadores vean dónde abrir zona
+      try {
+        const muni = searchParams.get('municipio');
+        await DemandaFueraZona.updateOne(
+          { lat: Math.round(lat * 100) / 100, lng: Math.round(lng * 100) / 100 },
+          {
+            $inc: { total: 1 },
+            $set: { ultimaVez: new Date(), ...(typeof muni === 'string' && muni.trim() ? { municipio: muni.trim().slice(0, 80) } : {}) }
+          },
+          { upsert: true }
+        );
+      } catch (e) { console.error('Error registrando demanda fuera de zona:', e); }
+
       return NextResponse.json({
         message: 'No hay servicios disponibles en tu zona actualmente',
         servicios: [],
