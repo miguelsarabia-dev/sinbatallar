@@ -2,7 +2,8 @@
 import mongoose from 'mongoose';
 
 const userSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true, trim: true, lowercase: true },
+  // Opcional: un cliente puede registrarse solo con teléfono. sparse permite varios usuarios sin email.
+  email: { type: String, unique: true, sparse: true, trim: true, lowercase: true },
   password: { type: String, minlength: 6 }, // Optional for Google-auth users
   nombre: { type: String, required: true, trim: true },
   telefono: { type: String, trim: true }, // Optional for Google-auth users
