@@ -139,8 +139,13 @@ export async function POST(request) {
     // es visible para él (estado 'enviada'). Si está en revisión del contratista, no.
     const visibleAlCliente = cotizacion.estado === 'enviada';
 
-    if (visibleAlCliente && (cita.estado === 'solicitada' || cita.estado === 'atendida')) {
+    // Cotizar directo (sin técnico) nace 'enviada' y la cita pasa a 'cotizada'. Vale también para un servicio
+    // directo en 'aceptada' que aún no tiene cotización aceptada (no se retrocede una cita ya contratada).
+    const puedeCotizar = cita.estado === 'solicitada' || cita.estado === 'atendida' ||
+      (cita.estado === 'aceptada' && !cita.cotizacionAceptada);
+    if (visibleAlCliente && puedeCotizar) {
       cita.estado = 'cotizada';
+      cita.historial.push({ estado: 'cotizada', fecha: new Date(), comentario: 'Cotización enviada al cliente' });
     }
 
     await cita.save();
