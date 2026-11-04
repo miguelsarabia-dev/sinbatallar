@@ -320,7 +320,7 @@ export default function CitasCliente() {
 
   const citasFiltradas = citas.filter(cita => {
     if (filtroEstado === 'todas') return true;
-    if (filtroEstado === 'activas') return !['completada', 'cancelada', 'no_presentado'].includes(cita.estado) || (cita.estado === 'completada' && !cita.pagado);
+    if (filtroEstado === 'activas') return !['completada', 'cancelada', 'rechazada', 'no_presentado'].includes(cita.estado) || (cita.estado === 'completada' && !cita.pagado);
     return cita.estado === filtroEstado;
   });
 

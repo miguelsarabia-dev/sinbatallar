@@ -4,7 +4,6 @@ import Contratista from '@/models/Contratista'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 import { requireSession } from '@/lib/session'
-import { enviarPush } from '@/lib/push'
 import { esObjectId, pick } from '@/lib/sanitize'
 import { relacionCon, camposPara, aplicarReglasAprobacion, SELECT_PUBLICO } from '@/lib/contratista-acceso'
 
@@ -103,9 +102,6 @@ export async function PUT(request, { params }) {
       { new: true, runValidators: true, upsert: false }
     );
 
-    if (data.aprobado === true && !contratistaActual.aprobado) {
-      await enviarPush([id], { titulo: '¡Cuenta aprobada!', cuerpo: 'Ya puedes recibir solicitudes de servicio', data: { tipo: 'cuenta_aprobada' } });
-    }
 
     return NextResponse.json(contratista);
 

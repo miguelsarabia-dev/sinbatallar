@@ -5,9 +5,6 @@ import { connectDB } from '@/lib/mongoose';
 import Cita from '@/models/Cita';
 import Comision from '@/models/Comision';
 import { requireSession } from '@/lib/session';
-import Tecnico from '@/models/Tecnico';
-import { enviarPush } from '@/lib/push';
-
 
 
 async function liberar(request, params) {
@@ -40,12 +37,6 @@ async function liberar(request, params) {
     if (comision.liberacionTecnico?.estado !== 'liberada') {
       comision.liberacionTecnico = { estado: 'liberada', fecha: new Date(), por: session.id };
       await comision.save();
-      const tecnico = await Tecnico.findById(comision.distribucion.tecnico.id).select('user').lean();
-      await enviarPush([tecnico?.user], {
-        titulo: 'Ganancia liberada',
-        cuerpo: `Tu ganancia de $${comision.distribucion.tecnico.monto} fue liberada`,
-        data: { tipo: 'ganancia_liberada', citaId: String(cita._id) }
-      });
     }
 
     return NextResponse.json({
