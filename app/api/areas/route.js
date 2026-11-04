@@ -6,7 +6,8 @@ import Aperturador from '@/models/Aperturador';
 import { getSessionFromRequest, requireSession } from '@/lib/session';
 import { esObjectId, escaparRegex } from '@/lib/sanitize';
 import { perfilIdDe } from '@/lib/perfiles';
-import { puedeEditarArea, SELECT_AREA_PUBLICA } from '@/lib/areas-acceso';
+import { puedeEditarArea, verificarAccesoArea, SELECT_AREA_PUBLICA } from '@/lib/areas-acceso';
+import { validarPoligono } from '@/lib/poligono';
 
 
 // GET - Obtener todas las áreas
@@ -26,7 +27,8 @@ export async function GET(request) {
         .sort({ createdAt: -1 });
     } else if (session?.role === 'aperturador') {
       const miId = await perfilIdDe(session);
-      areas = await Area.find({ aperturador: miId })
+      // Incluye zonas antiguas cuyo `aperturador` es el id del usuario (no del perfil)
+      areas = await Area.find({ aperturador: { $in: [miId, session.id].filter(Boolean) } })
         .populate('contratistas', 'nombre email telefono promedioCalificacion')
         .populate('aperturador')
         .sort({ createdAt: -1 });
@@ -74,6 +76,10 @@ export async function POST(request) {
         { error: 'Los datos del polígono son requeridos' },
         { status: 400 }
       );
+    }
+    const errorPoligono = validarPoligono(poligono);
+    if (errorPoligono) {
+      return NextResponse.json({ error: errorPoligono }, { status: 400 });
     }
 
     if (!['C', 'B', 'A', 'AA', 'AAA'].includes(clasificacion)) {
@@ -190,8 +196,9 @@ export async function PUT(request) {
         { status: 404 }
       );
     }
-    if (!(await puedeEditarArea(session, area))) {
-      return NextResponse.json({ error: 'No autorizado para esta zona' }, { status: 403 });
+    const acceso = await verificarAccesoArea(session, area);
+    if (!acceso.ok) {
+      return NextResponse.json({ error: acceso.error }, { status: acceso.status });
     }
 
     // Verificar nombre único (excluyendo el área actual)
@@ -224,6 +231,30 @@ export async function PUT(request) {
     }
 
     // Actualizar campos
+    if (poligono) {
+      const errorPoligono = validarPoligono(poligono);
+      if (errorPoligono) {
+        return NextResponse.json({ error: errorPoligono }, { status: 400 });
+      }
+    }
+
+    // Solo el admin reasigna el aperturador de una zona ('' / null = dejarla sin aperturador)
+    if (session.role === 'admin' && body.aperturadorId !== undefined) {
+      const nuevo = body.aperturadorId || null;
+      if (nuevo && !esObjectId(nuevo)) {
+        return NextResponse.json({ error: 'aperturadorId no válido' }, { status: 400 });
+      }
+      if (nuevo && !(await Aperturador.exists({ _id: nuevo }))) {
+        return NextResponse.json({ error: 'Aperturador no encontrado' }, { status: 404 });
+      }
+      const anterior = area.aperturador ? String(area.aperturador) : null;
+      if (anterior !== (nuevo ? String(nuevo) : null)) {
+        if (anterior) await Aperturador.updateOne({ _id: anterior }, { $pull: { areasCreadas: area._id } });
+        if (nuevo) await Aperturador.updateOne({ _id: nuevo }, { $addToSet: { areasCreadas: area._id } });
+        area.aperturador = nuevo;
+      }
+    }
+
     if (nombre) area.nombre = nombre.trim();
     if (descripcion !== undefined) area.descripcion = descripcion.trim();
     if (municipio !== undefined) area.municipio = municipio.trim();

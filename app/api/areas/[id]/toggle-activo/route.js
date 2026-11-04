@@ -8,7 +8,7 @@ import Area from '@/models/Area';
 import { getSessionFromRequest, requireSession } from '@/lib/session';
 import { esObjectId, escaparRegex } from '@/lib/sanitize';
 import { perfilIdDe } from '@/lib/perfiles';
-import { puedeEditarArea, SELECT_AREA_PUBLICA } from '@/lib/areas-acceso';
+import { puedeEditarArea, verificarAccesoArea, SELECT_AREA_PUBLICA } from '@/lib/areas-acceso';
 
 
 export async function PUT(request, { params }) {
@@ -22,8 +22,9 @@ export async function PUT(request, { params }) {
     const { activo } = await request.json();
     if (!esObjectId(id)) return NextResponse.json({ error: 'ID del área no válido' }, { status: 400 });
     const existente = await Area.findById(id);
-    if (existente && !(await puedeEditarArea(session, existente))) {
-      return NextResponse.json({ error: 'No autorizado para esta zona' }, { status: 403 });
+    if (existente) {
+      const acceso = await verificarAccesoArea(session, existente);
+      if (!acceso.ok) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
     }
 
     if (typeof activo !== 'boolean') {

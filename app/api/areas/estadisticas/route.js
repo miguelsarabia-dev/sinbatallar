@@ -4,7 +4,7 @@ import Area from '@/models/Area';
 import { getSessionFromRequest, requireSession } from '@/lib/session';
 import { esObjectId, escaparRegex } from '@/lib/sanitize';
 import { perfilIdDe } from '@/lib/perfiles';
-import { puedeEditarArea, SELECT_AREA_PUBLICA } from '@/lib/areas-acceso';
+import { puedeEditarArea, verificarAccesoArea, SELECT_AREA_PUBLICA } from '@/lib/areas-acceso';
 
 
 // Función para consultar Overpass API (OpenStreetMap)
@@ -156,6 +156,11 @@ export async function POST(request) {
     }
 
     // Consultar estadísticas usando Overpass API
+    const acceso = await verificarAccesoArea(session, area);
+    if (!acceso.ok) {
+      return NextResponse.json({ error: acceso.error }, { status: acceso.status });
+    }
+
     console.log(`Consultando estadísticas para área: ${area.nombre}`);
     const estadisticas = await consultarOverpassAPI(area.poligono);
 
@@ -219,8 +224,9 @@ export async function GET(request) {
     if (areaId) {
       // Obtener estadísticas de un área específica
       const area = await Area.findById(areaId);
-      if (area && !(await puedeEditarArea(session, area))) {
-        return NextResponse.json({ error: 'No autorizado para esta zona' }, { status: 403 });
+      if (area) {
+        const acceso = await verificarAccesoArea(session, area);
+        if (!acceso.ok) return NextResponse.json({ error: acceso.error }, { status: acceso.status });
       }
       if (!area) {
         return NextResponse.json(

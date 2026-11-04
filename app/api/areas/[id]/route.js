@@ -4,7 +4,8 @@ import Area from '@/models/Area';
 import { getSessionFromRequest, requireSession } from '@/lib/session';
 import { esObjectId, escaparRegex } from '@/lib/sanitize';
 import { perfilIdDe } from '@/lib/perfiles';
-import { puedeEditarArea, SELECT_AREA_PUBLICA } from '@/lib/areas-acceso';
+import { puedeEditarArea, verificarAccesoArea, SELECT_AREA_PUBLICA } from '@/lib/areas-acceso';
+import { validarPoligono } from '@/lib/poligono';
 
 
 // DELETE - Eliminar área
@@ -71,8 +72,16 @@ export async function PUT(request, { params }) {
     if (!area) {
       return NextResponse.json({ error: 'Área no encontrada' }, { status: 404 });
     }
-    if (!(await puedeEditarArea(session, area))) {
-      return NextResponse.json({ error: 'No autorizado para esta zona' }, { status: 403 });
+    const acceso = await verificarAccesoArea(session, area);
+    if (!acceso.ok) {
+      return NextResponse.json({ error: acceso.error }, { status: acceso.status });
+    }
+
+    if (poligono) {
+      const errorPoligono = validarPoligono(poligono);
+      if (errorPoligono) {
+        return NextResponse.json({ error: errorPoligono }, { status: 400 });
+      }
     }
 
     const updateFields = {};

@@ -843,6 +843,7 @@ export default function AdminDashboard() {
       descripcion: editingArea?.descripcion || '',
       clasificacion: editingArea?.clasificacion || 'C',
       contratistas: editingArea?.contratistas?.map(c => c._id) || [],
+      aperturadorId: editingArea?.aperturador?._id || editingArea?.aperturador || '',
     });
     const [todosLosContratistas, setTodosLosContratistas] = useState([]);
     const [cargandoContratistas, setCargandoContratistas] = useState(true);
@@ -856,6 +857,7 @@ export default function AdminDashboard() {
           descripcion: editingArea.descripcion || '',
           clasificacion: editingArea.clasificacion,
           contratistas: editingArea.contratistas?.map(c => c._id) || [],
+          aperturadorId: editingArea.aperturador?._id || editingArea.aperturador || '',
         });
         cargarTodosLosContratistas();
       }
@@ -979,6 +981,24 @@ export default function AdminDashboard() {
                   <option value="A">A - Avanzada</option>
                   <option value="AA">AA - Premium</option>
                   <option value="AAA">AAA - Élite</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Aperturador de la zona
+                </label>
+                <select
+                  value={formData.aperturadorId}
+                  onChange={(e) => setFormData({ ...formData, aperturadorId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">Sin aperturador (nadie puede gestionarla)</option>
+                  {aperturadores.map(a => (
+                    <option key={a._id} value={a._id}>
+                      {a.user?.nombre || 'Aperturador'}{a.user?.email ? ` · ${a.user.email}` : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
 
