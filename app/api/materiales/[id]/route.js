@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { requireSession, getSessionFromRequest } from '@/lib/session';
 import { esObjectId, pick } from '@/lib/sanitize';
+import { parseStock } from '@/lib/stock';
 
 import { connectDB } from '@/lib/mongoose';
 import Material from '@/models/Material';
@@ -49,6 +50,11 @@ export async function PUT(request, { params }) {
     camposPermitidos.forEach(campo => {
       if (body[campo] !== undefined) material[campo] = body[campo];
     });
+
+    // stock: entero >= 0 se controla; ''/null = sin control; ausente = no cambia
+    const stock = parseStock(body.stock);
+    if (!stock.ok) return NextResponse.json({ error: stock.error }, { status: 400 });
+    if (stock.definido) material.stock = stock.valor;
 
     if (body.precio !== undefined && parseFloat(body.precio) < 0) {
       return NextResponse.json({ error: 'El precio no puede ser negativo' }, { status: 400 });
