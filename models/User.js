@@ -44,7 +44,11 @@ userSchema.virtual('direccionCompleta').get(function () {
   return partes.join(', ');
 });
 
-userSchema.set('toJSON', { virtuals: true });
+// El password (hash) nunca sale en una respuesta JSON.
+userSchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc, ret) => { delete ret.password; return ret; }
+});
 userSchema.set('toObject', { virtuals: true });
 
 export default mongoose.models.User || mongoose.model('User', userSchema);

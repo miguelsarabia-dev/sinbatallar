@@ -9,26 +9,23 @@ import Contratista from '@/models/Contratista';
 import Servicio from '@/models/Servicio';
 import User from '@/models/User';
 import { enviarNotificacionCambioEstado } from '@/lib/email-service';
+import { requireSession } from '@/lib/session';
 
 export async function POST(request, { params }) {
   try {
     await connectDB();
 
-    const { id } = await params;
-    const { contratistaId } = await request.json();
+    const { session, error } = await requireSession(request, ['contratista']);
+    if (error) return error;
 
-    if (!contratistaId) {
-      return NextResponse.json(
-        { error: 'contratistaId requerido' },
-        { status: 400 }
-      );
-    }
+    const { id } = await params;
+    const contratistaId = session.id; // del token; el body se ignora
 
     const contratista = await Contratista.findById(contratistaId);
-    if (!contratista || !contratista.activo) {
+    if (!contratista || !contratista.aprobado || !contratista.activo) {
       return NextResponse.json(
-        { error: 'Contratista no encontrado o inactivo' },
-        { status: 404 }
+        { error: contratista && !contratista.aprobado ? 'Tu cuenta aún está en revisión' : 'Contratista no disponible' },
+        { status: contratista && !contratista.aprobado ? 403 : 404 }
       );
     }
 

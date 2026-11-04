@@ -1,4 +1,8 @@
 import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
+import { esObjectId } from '@/lib/sanitize';
+import { perfilIdDe } from '@/lib/perfiles';
+
 import { connectDB } from '@/lib/mongoose';
 import Incorporador from '@/models/Incorporador';
 import User from '@/models/User';
@@ -8,10 +12,23 @@ import Contratista from '@/models/Contratista';
 export async function GET(request) {
   try {
     await connectDB();
-    
+
+    const { session, error } = await requireSession(request, ['incorporador', 'admin']);
+    if (error) return error;
+
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    // Un incorporador solo accede a su propio perfil; el admin a cualquiera.
+    const userId = session.role === 'incorporador' ? session.id : searchParams.get('userId');
     const incorporadorId = searchParams.get('id');
+    if (session.role === 'incorporador') {
+      const miId = await perfilIdDe(session);
+      if (incorporadorId && incorporadorId !== miId) {
+        return NextResponse.json({ message: 'No autorizado' }, { status: 403 });
+      }
+    }
+    if ((userId && !esObjectId(userId)) || (incorporadorId && !esObjectId(incorporadorId))) {
+      return NextResponse.json({ message: 'ID inválido' }, { status: 400 });
+    }
     
     if (userId) {
       let incorporador = await Incorporador.findOne({ user: userId })
@@ -87,7 +104,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error obteniendo incorporadores:', error);
     return NextResponse.json(
-      { message: 'Error al obtener incorporadores', error: error.message },
+      { message: 'Error al obtener incorporadores' },
       { status: 500 }
     );
   }

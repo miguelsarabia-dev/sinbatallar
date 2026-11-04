@@ -2,19 +2,19 @@ import { connectDB } from '@/lib/mongoose';
 import Contratista from '@/models/Contratista';
 import Incorporador from '@/models/Incorporador';
 import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
 
 // POST: Reclamar un contratista disponible (sin incorporador)
 export async function POST(request) {
   try {
     await connectDB();
 
-    const { contratistaId, userId } = await request.json();
+    const { session, error } = await requireSession(request, ['incorporador']);
+    if (error) return error;
+    const userId = session.id; // del token
+    const { contratistaId } = await request.json();
 
-    if (!userId) {
-      return NextResponse.json({ error: 'No autorizado: ID de usuario requerido' }, { status: 401 });
-    }
-
-    if (!contratistaId) {
+    if (!contratistaId || typeof contratistaId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(contratistaId)) {
       return NextResponse.json(
         { error: 'ID del contratista es requerido' },
         { status: 400 }
@@ -49,6 +49,7 @@ export async function POST(request) {
 
     // Asignar el incorporador y activar al contratista
     contratista.incorporador = incorporador._id;
+    contratista.aprobado = true;
     contratista.activo = true;
     contratista.estatus = 'activo';
     await contratista.save();

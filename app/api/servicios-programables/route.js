@@ -28,7 +28,8 @@ export async function GET(request) {
       // Buscar contratistas activos que ofrecen este servicio
       const contratistas = await Contratista.find({
         servicios: servicio._id,
-        activo: true // Asumiendo que hay un campo activo
+        activo: true,
+        aprobado: true
       }).populate('servicios', 'nombre descripcion categoria')
         .select('nombre direccion telefono email calificacion ubicacion servicios');
       

@@ -5,17 +5,27 @@ import Cotizacion from '@/models/Cotizacion';
 import Cita from '@/models/Cita';
 import Comision from '@/models/Comision';
 import Contratista from '@/models/Contratista';
+import Comprobante from '@/models/Comprobante';
 import { enviarEmailsCitaAceptada, enviarEmailsCitaCancelada, enviarEmailCitaCotizada } from '@/lib/email-service';
+import { requireSession } from '@/lib/session';
+import Tecnico from '@/models/Tecnico';
+import { esObjectId } from '@/lib/sanitize';
 
 // GET - Obtener una cotización específica
 export async function GET(request, { params }) {
   try {
     await connectDB();
 
+    const { session, error: errorSesion } = await requireSession(request, ['cliente', 'contratista', 'tecnico', 'admin']);
+    if (errorSesion) return errorSesion;
+
     const { id } = await params;
+    if (!esObjectId(id)) {
+      return NextResponse.json({ error: 'Cotización no encontrada' }, { status: 404 });
+    }
 
     const cotizacion = await Cotizacion.findById(id)
-      .populate('contratista', 'nombre email telefono promedioCalificacion')
+      .populate('contratista', 'nombre email telefono promedioCalificacion informacionPago')
       .populate({
         path: 'cita',
         populate: [
@@ -29,6 +39,22 @@ export async function GET(request, { params }) {
         { error: 'Cotización no encontrada' },
         { status: 404 }
       );
+    }
+
+    // Dueño: el cliente de la cita (sin estados internos), el contratista, el técnico que la originó o admin.
+    const clienteDeLaCita = cotizacion.cita?.cliente?._id?.toString();
+    let permitido = session.role === 'admin';
+    if (session.role === 'contratista') permitido = cotizacion.contratista?._id?.toString() === session.id;
+    if (session.role === 'cliente') {
+      permitido = clienteDeLaCita === session.id &&
+        !['pendiente', 'pendiente_contratista', 'rechazada_contratista'].includes(cotizacion.estado);
+    }
+    if (session.role === 'tecnico') {
+      const tecnico = await Tecnico.findOne({ user: session.id }).select('_id');
+      permitido = !!tecnico && cotizacion.tecnico?.toString() === tecnico._id.toString();
+    }
+    if (!permitido) {
+      return NextResponse.json({ error: 'Cotización no encontrada' }, { status: 404 });
     }
 
     return NextResponse.json(cotizacion);
@@ -47,6 +73,9 @@ export async function DELETE(request, { params }) {
   try {
     await connectDB();
 
+    const { session, error: errorSesion } = await requireSession(request, ['contratista', 'admin']);
+    if (errorSesion) return errorSesion;
+
     const { id } = await params;
 
     const cotizacion = await Cotizacion.findById(id);
@@ -56,6 +85,13 @@ export async function DELETE(request, { params }) {
         { error: 'Cotización no encontrada' },
         { status: 404 }
       );
+    }
+    if (session.role === 'contratista' && cotizacion.contratista.toString() !== session.id) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+    // Con pago en curso no se borra (rompería el rastro del dinero)
+    if (['aceptada'].includes(cotizacion.estado) && session.role !== 'admin') {
+      return NextResponse.json({ error: 'No se puede eliminar una cotización aceptada' }, { status: 400 });
     }
 
     // Si la cotización está vinculada a una cita, actualizarla
@@ -95,17 +131,12 @@ export async function PUT(request, { params }) {
   try {
     await connectDB();
 
+    const { session, error: errorSesion } = await requireSession(request, ['contratista']);
+    if (errorSesion) return errorSesion;
+    const contratistaId = session.id; // del token
+
     const { id } = await params;
     const data = await request.json();
-
-    const { contratistaId } = data;
-
-    if (!contratistaId) {
-      return NextResponse.json(
-        { error: 'Se requiere contratistaId' },
-        { status: 400 }
-      );
-    }
 
     const cotizacion = await Cotizacion.findById(id);
 
@@ -174,23 +205,37 @@ export async function PUT(request, { params }) {
 export async function PATCH(request, { params }) {
   try {
     await connectDB();
+
+    const { session, error: errorSesion } = await requireSession(request);
+    if (errorSesion) return errorSesion;
+
     const { id } = await params;
     const body = await request.json();
     const { estado } = body;
 
     // --- Flujo C: declaración de pago del cliente sin transición de estado ---
     // El saldo final llega como { pagadoCompleto: true, paymentInfo: { tipo: 'saldo', ... } }
-    // (sin `estado`). El comprobante va por WhatsApp; aquí solo se registra la
-    // declaración, pendiente de verificación por el contratista.
+    // (sin `estado`). Exige el comprobante subido antes (POST /comprobantes); el contratista
+    // lo verifica después en /verificar-pago.
     if (!estado && (body.pagadoCompleto === true || body.paymentInfo?.comprobanteDeclarado)) {
-      const cotizacion = await Cotizacion.findById(id);
+      const cotizacion = await Cotizacion.findById(id).populate('cita');
       if (!cotizacion) {
         return NextResponse.json({ error: 'Cotización no encontrada' }, { status: 404 });
       }
-      aplicarDeclaracionPago(cotizacion, body.paymentInfo, 'saldo');
+      if (session.role !== 'cliente' || cotizacion.cita?.cliente?.toString() !== session.id) {
+        return NextResponse.json({ error: 'Solo el cliente de la cita puede declarar el pago' }, { status: 403 });
+      }
+
+      const tipoDefecto = cotizacion.modalidadPago === 'total' ? 'total' : 'saldo';
+      const tipo = ['anticipo', 'saldo', 'total'].includes(body.paymentInfo?.tipo) ? body.paymentInfo.tipo : tipoDefecto;
+      if ((tipo === 'total') !== (cotizacion.modalidadPago === 'total')) {
+        return NextResponse.json({ error: `El tipo '${tipo}' no corresponde a la modalidad '${cotizacion.modalidadPago}'` }, { status: 400 });
+      }
+      const falta = await aplicarDeclaracionPago(cotizacion, body.paymentInfo, tipo);
+      if (falta) return NextResponse.json({ error: falta }, { status: 400 });
       await cotizacion.save();
       return NextResponse.json({
-        message: 'Pago de saldo declarado. Pendiente de verificación por el contratista.',
+        message: `Pago de ${tipo} declarado. Pendiente de verificación por el contratista.`,
         cotizacion
       });
     }
@@ -215,6 +260,10 @@ export async function PATCH(request, { params }) {
     const esRevisionContratista = estado === 'enviada' || estado === 'rechazada_contratista';
 
     if (esRevisionContratista) {
+      const esDueno = session.role === 'contratista' && cotizacion.contratista.toString() === session.id;
+      if (!esDueno && session.role !== 'admin') {
+        return NextResponse.json({ error: 'No tienes permiso para revisar esta cotización' }, { status: 403 });
+      }
       if (cotizacion.estado !== 'pendiente_contratista') {
         return NextResponse.json(
           { error: `Solo se pueden revisar cotizaciones en 'pendiente_contratista' (actual: ${cotizacion.estado})` },
@@ -275,6 +324,11 @@ export async function PATCH(request, { params }) {
     }
 
     // --- Flujo B: decisión del cliente (aceptada / rechazada) ---
+    // Solo el cliente de la cita decide (o un admin).
+    if (session.role !== 'admin' && !(session.role === 'cliente' && cotizacion.cita?.cliente?.toString() === session.id)) {
+      return NextResponse.json({ error: 'Solo el cliente de la cita puede decidir sobre la cotización' }, { status: 403 });
+    }
+
     // Solo sobre cotizaciones visibles ('enviada'); nunca sobre estados internos.
     if (cotizacion.estado !== 'enviada') {
       return NextResponse.json(
@@ -283,15 +337,23 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    cotizacion.estado = estado;
-
     // Si se acepta la cotización
     if (estado === 'aceptada') {
-      // El cliente acepta y, en el mismo paso, declara el pago del anticipo
-      // (comprobante enviado por WhatsApp). Persistir esa declaración.
-      if (body.paymentInfo) {
-        aplicarDeclaracionPago(cotizacion, body.paymentInfo, 'anticipo');
+      // Modalidad elegida: anticipo (50% + saldo) o pago total (100%).
+      const modalidad = (body.modalidadPago === 'total' || body.paymentInfo?.tipo === 'total') ? 'total' : 'anticipo';
+      cotizacion.modalidadPago = modalidad;
+
+      // El cliente acepta y, en el mismo paso, declara el pago (anticipo o total). Exige el
+      // comprobante previo subido con POST /comprobantes.
+      if (body.paymentInfo?.comprobanteDeclarado) {
+        const falta = await aplicarDeclaracionPago(cotizacion, body.paymentInfo, modalidad === 'total' ? 'total' : 'anticipo');
+        if (falta) return NextResponse.json({ error: falta }, { status: 400 });
       }
+    }
+
+    cotizacion.estado = estado;
+
+    if (estado === 'aceptada') {
 
       const cita = await Cita.findById(cotizacion.cita);
 
@@ -363,26 +425,25 @@ export async function PATCH(request, { params }) {
 }
 
 /**
- * Registra en la cotización la declaración de pago del cliente (anticipo o saldo).
- * El comprobante viaja por WhatsApp; aquí solo se marca "declarado", pendiente de
- * verificación manual por el contratista. Rehacer una declaración no altera un
- * `verificado` previo (eso lo maneja el contratista en /verificar-pago).
+ * Registra en la cotización la declaración de pago del cliente (anticipo, saldo o total).
+ * Exige que exista un comprobante vigente del tipo (POST /comprobantes); el monto declarado
+ * es el del comprobante. Rehacer una declaración no altera un `verificado` previo.
  * @param {import('mongoose').Document} cotizacion
- * @param {{tipo?: string, monto?: number, comprobanteDeclarado?: boolean, via?: string}} paymentInfo
- * @param {'anticipo'|'saldo'} tipoPorDefecto - usado si paymentInfo.tipo no es válido
+ * @param {{via?: string}} paymentInfo
+ * @param {'anticipo'|'saldo'|'total'} tipo
+ * @returns {Promise<string|null>} mensaje de error si falta el comprobante, o null
  */
-function aplicarDeclaracionPago(cotizacion, paymentInfo = {}, tipoPorDefecto) {
-  const tipo = ['anticipo', 'saldo'].includes(paymentInfo?.tipo)
-    ? paymentInfo.tipo
-    : tipoPorDefecto;
+async function aplicarDeclaracionPago(cotizacion, paymentInfo = {}, tipo) {
+  const comprobante = await Comprobante.findOne({ cotizacion: cotizacion._id, tipo, estado: 'vigente' })
+    .sort({ createdAt: -1 });
+  if (!comprobante) {
+    return `Primero sube el comprobante de ${tipo} (POST /comprobantes)`;
+  }
 
-  const parte = cotizacion[tipo];
+  const parte = tipo === 'total' ? cotizacion.pagoUnico : cotizacion[tipo];
   parte.declarado = true;
   parte.fechaDeclaracion = parte.fechaDeclaracion || new Date();
-  if (paymentInfo?.via) parte.via = paymentInfo.via;
-
-  const monto = Number(paymentInfo?.monto);
-  if (Number.isFinite(monto) && monto > 0) {
-    parte.monto = monto;
-  }
+  parte.via = paymentInfo?.via || 'comprobante';
+  parte.monto = comprobante.monto;
+  return null;
 }

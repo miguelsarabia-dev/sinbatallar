@@ -1,18 +1,32 @@
 // middleware.js
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
+import { evaluarPolitica } from '@/lib/policy';
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || 'tu-clave-secreta-muy-segura-aqui'
+  process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || ''
 );
 
-// Función para agregar headers CORS dinámicamente
+// CORS: solo orígenes web conocidos. La app móvil no usa CORS (no manda Origin).
+// Orígenes extra: variable CORS_ORIGINS="https://a.com,https://b.com"
+const ORIGENES_PERMITIDOS = new Set([
+  'https://sinbatallar.vercel.app',
+  ...(process.env.NEXTAUTH_URL ? [process.env.NEXTAUTH_URL.replace(/\/$/, '')] : []),
+  ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '')] : []),
+  ...(process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(o => o.trim().replace(/\/$/, '')).filter(Boolean) : []),
+  ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://127.0.0.1:3000'] : [])
+]);
+
 function addCorsHeaders(request, response) {
-  const origin = request.headers.get('origin') || '*';
-  response.headers.set('Access-Control-Allow-Origin', origin);
-  response.headers.set('Access-Control-Allow-Credentials', 'true');
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, X-CSRF-Token, Date, X-Api-Version');
+  const origin = request.headers.get('origin');
+  // Origen no listado: sin headers CORS (el navegador bloquea) y sin credentials.
+  if (origin && ORIGENES_PERMITIDOS.has(origin)) {
+    response.headers.set('Access-Control-Allow-Origin', origin);
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+    response.headers.set('Vary', 'Origin');
+  }
   return response;
 }
 
@@ -34,11 +48,31 @@ export async function middleware(request) {
 
   // Manejar Preflight (OPTIONS) requests para rutas API
   if (request.method === 'OPTIONS' && pathname.startsWith('/api/')) {
-    return addCorsHeaders(request, new NextResponse(null, { status: 200 }));
+    return addCorsHeaders(request, new NextResponse(null, { status: 204 }));
   }
 
-  // Rutas de API públicas - permitir siempre y agregar headers CORS
-  if (pathname.startsWith('/api/') && !pathname.startsWith('/api/protected/')) {
+  // API: token obligatorio salvo las rutas públicas de lib/policy.js, con control de rol por ruta.
+  // La autorización por dueño (que el id sea del usuario del token) la hacen los handlers.
+  if (pathname.startsWith('/api/')) {
+    let token = request.cookies.get('auth-token')?.value;
+    const authHeader = request.headers.get('authorization');
+    if (authHeader?.startsWith('Bearer ')) token = authHeader.substring(7);
+
+    const payload = token ? await verifyTokenMiddleware(token) : null;
+    const role = payload ? (payload.role || payload.userType) : null;
+    const normalizado = role === 'user' ? 'cliente' : role;
+
+    const decision = evaluarPolitica(request.method, pathname, request.nextUrl.searchParams, normalizado);
+
+    if (decision === 'public') {
+      return addCorsHeaders(request, NextResponse.next());
+    }
+    if (!payload) {
+      return addCorsHeaders(request, NextResponse.json({ error: 'No autenticado' }, { status: 401 }));
+    }
+    if (decision === 'forbidden') {
+      return addCorsHeaders(request, NextResponse.json({ error: 'No autorizado' }, { status: 403 }));
+    }
     return addCorsHeaders(request, NextResponse.next());
   }
 
@@ -97,8 +131,6 @@ export async function middleware(request) {
   }
 
   const userRole = payload.role || payload.userType;
-  console.log('Middleware - User role:', userRole, 'Path:', pathname);
-
   // Admin puede acceder a todo
   if (userRole === 'admin') {
     return NextResponse.next();

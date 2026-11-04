@@ -1,21 +1,18 @@
 import { NextResponse } from 'next/server';
 import { uploadMultipleImages } from '@/lib/cloudinary';
+import { requireSession } from '@/lib/session';
+import { leerImagenes } from '@/lib/upload';
 
+// POST: sube hasta 10 imágenes (imagen_0, imagen_1...) a Cloudinary. Requiere token (contratista/técnico).
 export async function POST(request) {
   try {
+    const { error } = await requireSession(request, ['contratista', 'tecnico']);
+    if (error) return error;
+
     const formData = await request.formData();
-    const imagenes = [];
-    
-    let index = 0;
-    while (formData.has(`imagen_${index}`)) {
-      imagenes.push(formData.get(`imagen_${index}`));
-      index++;
-    }
-    
-    if (imagenes.length === 0) {
-      return NextResponse.json({ error: 'No se enviaron imagenes' }, { status: 400 });
-    }
-    
+    const { imagenes, error: errorImagenes } = leerImagenes(formData);
+    if (errorImagenes) return errorImagenes;
+
     const uploadResults = await uploadMultipleImages(imagenes, {
       folder: 'sinbatallar/citas/cotizaciones',
       quality: 'auto:good',
@@ -25,12 +22,12 @@ export async function POST(request) {
         crop: 'limit'
       }
     });
-    
+
     const urls = uploadResults.map(r => r.url);
-    
+
     return NextResponse.json({ urls, success: true });
   } catch (error) {
-    console.error('Error subiendo imagenes de cotizacion:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Error subiendo imágenes (cotizacion-images):', error);
+    return NextResponse.json({ error: 'No se pudieron subir las imágenes' }, { status: 500 });
   }
 }

@@ -13,6 +13,7 @@ export async function GET(request, { params }) {
 
     // Obtener contratista con populate
     const contratista = await Contratista.findById(id)
+      .select('-password')
       .populate('servicios', 'nombre categoria descripcion tipo')
       .populate('incorporador', 'nombre telefono')
       .lean();

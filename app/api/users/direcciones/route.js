@@ -1,20 +1,16 @@
 import { connectDB } from '@/lib/mongoose';
 import User from '@/models/User';
 import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
 
 // GET: Obtener todas las direcciones de un usuario
 export async function GET(request) {
   await connectDB();
+  const { session, error } = await requireSession(request, ['cliente']);
+  if (error) return error;
 
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return NextResponse.json({
-        error: 'userId es requerido'
-      }, { status: 400 });
-    }
+    const userId = session.id; // del token; ?userId se ignora
 
     const user = await User.findById(userId);
 
@@ -32,8 +28,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error al obtener direcciones:', error);
     return NextResponse.json({
-      error: 'Error al obtener direcciones',
-      details: error.message
+      error: 'Error al obtener direcciones'
     }, { status: 500 });
   }
 }
@@ -41,13 +36,16 @@ export async function GET(request) {
 // POST: Agregar nueva dirección
 export async function POST(request) {
   await connectDB();
+  const { session, error } = await requireSession(request, ['cliente']);
+  if (error) return error;
 
   try {
-    const { userId, direccion } = await request.json();
+    const { direccion } = await request.json();
+    const userId = session.id; // del token
 
-    if (!userId || !direccion) {
+    if (!direccion) {
       return NextResponse.json({
-        error: 'userId y direccion son requeridos'
+        error: 'direccion es requerida'
       }, { status: 400 });
     }
 
@@ -90,8 +88,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('Error al agregar dirección:', error);
     return NextResponse.json({
-      error: 'Error al agregar dirección',
-      details: error.message
+      error: 'Error al agregar dirección'
     }, { status: 500 });
   }
 }
@@ -99,13 +96,16 @@ export async function POST(request) {
 // PUT: Actualizar una dirección existente
 export async function PUT(request) {
   await connectDB();
+  const { session, error } = await requireSession(request, ['cliente']);
+  if (error) return error;
 
   try {
-    const { userId, direccionId, direccion } = await request.json();
+    const { direccionId, direccion } = await request.json();
+    const userId = session.id; // del token
 
-    if (!userId || !direccionId || !direccion) {
+    if (!direccionId || !direccion) {
       return NextResponse.json({
-        error: 'userId, direccionId y direccion son requeridos'
+        error: 'direccionId y direccion son requeridos'
       }, { status: 400 });
     }
 
@@ -161,8 +161,7 @@ export async function PUT(request) {
   } catch (error) {
     console.error('Error al actualizar dirección:', error);
     return NextResponse.json({
-      error: 'Error al actualizar dirección',
-      details: error.message
+      error: 'Error al actualizar dirección'
     }, { status: 500 });
   }
 }
@@ -170,13 +169,16 @@ export async function PUT(request) {
 // DELETE: Eliminar una dirección
 export async function DELETE(request) {
   await connectDB();
+  const { session, error } = await requireSession(request, ['cliente']);
+  if (error) return error;
 
   try {
-    const { userId, direccionId } = await request.json();
+    const { direccionId } = await request.json();
+    const userId = session.id; // del token
 
-    if (!userId || !direccionId) {
+    if (!direccionId) {
       return NextResponse.json({
-        error: 'userId y direccionId son requeridos'
+        error: 'direccionId es requerido'
       }, { status: 400 });
     }
 
@@ -217,8 +219,7 @@ export async function DELETE(request) {
   } catch (error) {
     console.error('Error al eliminar dirección:', error);
     return NextResponse.json({
-      error: 'Error al eliminar dirección',
-      details: error.message
+      error: 'Error al eliminar dirección'
     }, { status: 500 });
   }
 }

@@ -1,5 +1,8 @@
 // app/api/ferreteros/[id]/route.js
 import { NextResponse } from 'next/server';
+import { requireSession, getSessionFromRequest } from '@/lib/session';
+import { esObjectId, pick } from '@/lib/sanitize';
+
 import { connectDB } from '@/lib/mongoose';
 import Ferretero from '@/models/Ferretero';
 import User from '@/models/User';
@@ -28,15 +31,27 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   try {
     await connectDB();
+    const { session, error } = await requireSession(request, ['ferretero', 'admin']);
+    if (error) return error;
     const { id } = await params;
+    if (!esObjectId(id)) return NextResponse.json({ error: 'Ferretero no encontrado' }, { status: 404 });
     const body = await request.json();
 
     const ferretero = await Ferretero.findById(id);
     if (!ferretero) {
       return NextResponse.json({ error: 'Ferretero no encontrado' }, { status: 404 });
     }
+    if (session.role === 'ferretero' && ferretero.user.toString() !== session.id) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
 
-    const camposPermitidos = ['nombreNegocio', 'telefono', 'direccion', 'activo', 'catalogoActivo', 'pendienteAprobacion'];
+    // El ferretero edita su negocio; aprobar/activar la cuenta es solo del admin.
+    const camposPermitidos = session.role === 'admin'
+      ? ['nombreNegocio', 'telefono', 'direccion', 'activo', 'catalogoActivo', 'pendienteAprobacion']
+      : ['nombreNegocio', 'telefono', 'direccion', 'catalogoActivo'];
+    if (session.role !== 'admin' && body.catalogoActivo === true && !ferretero.activo) {
+      return NextResponse.json({ error: 'Tu cuenta aún no está aprobada' }, { status: 403 });
+    }
     camposPermitidos.forEach(campo => {
       if (body[campo] !== undefined) ferretero[campo] = body[campo];
     });
@@ -68,6 +83,8 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     await connectDB();
+    const { error } = await requireSession(request, ['admin']);
+    if (error) return error;
     const { id } = await params;
 
     const ferretero = await Ferretero.findById(id);

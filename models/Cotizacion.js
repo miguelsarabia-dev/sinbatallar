@@ -69,6 +69,17 @@ const cotizacionSchema = new mongoose.Schema({
     via: { type: String, trim: true, default: null },
     verificado: { type: Boolean, default: false },
     fechaVerificacion: { type: Date, default: null }
+  },
+  // Modalidad elegida al aceptar: anticipo 50% + saldo 50%, o pago total (100%) en una exhibición.
+  modalidadPago: { type: String, enum: ['anticipo', 'total'], default: 'anticipo' },
+  // Pago del 100% (solo cuando modalidadPago === 'total')
+  pagoUnico: {
+    monto: { type: Number, default: 0, min: 0 },
+    declarado: { type: Boolean, default: false },
+    fechaDeclaracion: { type: Date, default: null },
+    via: { type: String, trim: true, default: null },
+    verificado: { type: Boolean, default: false },
+    fechaVerificacion: { type: Date, default: null }
   }
 
 }, {
@@ -122,12 +133,20 @@ cotizacionSchema.virtual('saldoDeclarado').get(function () {
 cotizacionSchema.virtual('saldoVerificado').get(function () {
   return !!this.saldo?.verificado;
 });
-// El cliente declaró que pagó todo (anticipo + saldo).
+cotizacionSchema.virtual('pagoUnicoDeclarado').get(function () {
+  return !!this.pagoUnico?.declarado;
+});
+cotizacionSchema.virtual('pagoUnicoVerificado').get(function () {
+  return !!this.pagoUnico?.verificado;
+});
+// El cliente declaró que pagó todo (anticipo + saldo, o pago único).
 cotizacionSchema.virtual('pagadoCompleto').get(function () {
+  if (this.modalidadPago === 'total') return !!this.pagoUnico?.declarado;
   return !!this.anticipo?.declarado && !!this.saldo?.declarado;
 });
-// pagado (cierre con certeza): ambas partes verificadas por el contratista.
+// pagado (cierre con certeza): todo el monto verificado por el contratista.
 cotizacionSchema.virtual('pagado').get(function () {
+  if (this.modalidadPago === 'total') return !!this.pagoUnico?.verificado;
   return !!this.anticipo?.verificado && !!this.saldo?.verificado;
 });
 

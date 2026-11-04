@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Area from '@/models/Area';
+import { getSessionFromRequest, requireSession } from '@/lib/session';
+import { esObjectId, escaparRegex } from '@/lib/sanitize';
+import { perfilIdDe } from '@/lib/perfiles';
+import { puedeEditarArea, SELECT_AREA_PUBLICA } from '@/lib/areas-acceso';
+
 
 // Función para consultar Overpass API (OpenStreetMap)
 async function consultarOverpassAPI(poligono) {
@@ -196,18 +201,24 @@ export async function POST(request) {
 // GET - Obtener estadísticas de todas las áreas o de una específica
 export async function GET(request) {
   try {
-
-
+    const { session, error } = await requireSession(request, ['aperturador', 'admin']);
+    if (error) return error;
 
     const { searchParams } = new URL(request.url);
     const areaId = searchParams.get('areaId');
-    const actualizarTodas = searchParams.get('actualizarTodas') === 'true';
+    const actualizarTodas = searchParams.get('actualizarTodas') === 'true' && session.role === 'admin';
+    if (areaId && !esObjectId(areaId)) {
+      return NextResponse.json({ error: 'ID del área no válido' }, { status: 400 });
+    }
 
     await connectDB();
 
     if (areaId) {
       // Obtener estadísticas de un área específica
       const area = await Area.findById(areaId);
+      if (area && !(await puedeEditarArea(session, area))) {
+        return NextResponse.json({ error: 'No autorizado para esta zona' }, { status: 403 });
+      }
       if (!area) {
         return NextResponse.json(
           { error: 'Área no encontrada' },

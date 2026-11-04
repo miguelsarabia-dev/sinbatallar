@@ -1,21 +1,25 @@
 import { NextResponse } from 'next/server';
-import { uploadImage, deleteImage } from '@/lib/cloudinary';
+import { uploadImage } from '@/lib/cloudinary';
+import { requireSession } from '@/lib/session';
+import { errorDeImagen } from '@/lib/upload';
 
+// POST: foto de perfil del usuario autenticado (el userId sale del token).
 export async function POST(request) {
   try {
+    const { session, error } = await requireSession(request);
+    if (error) return error;
+
     const formData = await request.formData();
     const imagen = formData.get('foto');
-    const userId = formData.get('userId');
-    
-    if (!imagen || !userId) {
-      return NextResponse.json({ 
-        error: 'Imagen y userId son requeridos' 
-      }, { status: 400 });
+
+    const errorImagen = errorDeImagen(imagen);
+    if (errorImagen) {
+      return NextResponse.json({ error: errorImagen }, { status: 400 });
     }
-    
+
     const uploadResult = await uploadImage(imagen, {
       folder: 'sinbatallar/usuarios/fotos-perfil',
-      publicId: `user_${userId}`,
+      publicId: `user_${session.id}`,
       quality: 'auto:good',
       transformation: {
         width: 400,
@@ -24,14 +28,14 @@ export async function POST(request) {
         gravity: 'face'
       }
     });
-    
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       url: uploadResult.url,
       publicId: uploadResult.publicId,
-      success: true 
+      success: true
     });
   } catch (error) {
     console.error('Error subiendo foto de perfil:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'No se pudo subir la imagen' }, { status: 500 });
   }
 }

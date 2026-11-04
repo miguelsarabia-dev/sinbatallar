@@ -1,15 +1,19 @@
 import { connectDB } from '@/lib/mongoose';
 import User from '@/models/User';
 import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
 
 // PUT: Cambiar dirección principal
 export async function PUT(request) {
   await connectDB();
+  const { session, error } = await requireSession(request, ['cliente']);
+  if (error) return error;
 
   try {
-    const { userId, direccionId } = await request.json();
+    const { direccionId } = await request.json();
+    const userId = session.id; // del token
 
-    if (!userId || !direccionId) {
+    if (!direccionId) {
       return NextResponse.json({
         error: 'UserId y direccionId son requeridos'
       }, { status: 400 });

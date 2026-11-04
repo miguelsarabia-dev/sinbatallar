@@ -1,4 +1,8 @@
 import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
+import { esObjectId } from '@/lib/sanitize';
+import { perfilIdDe } from '@/lib/perfiles';
+
 import { connectDB } from '@/lib/mongoose';
 import Aperturador from '@/models/Aperturador';
 import User from '@/models/User';
@@ -8,9 +12,16 @@ import Area from '@/models/Area';
 export async function GET(request) {
   try {
     await connectDB();
+
+    const { session, error } = await requireSession(request, ['aperturador', 'admin']);
+    if (error) return error;
     
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    // Un aperturador solo accede a su propio perfil; el admin a cualquiera.
+    const userId = session.role === 'aperturador' ? session.id : searchParams.get('userId');
+    if (userId && !esObjectId(userId)) {
+      return NextResponse.json({ message: 'ID inválido' }, { status: 400 });
+    }
     
     if (userId) {
       const aperturador = await Aperturador.findOne({ user: userId })
@@ -37,7 +48,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error obteniendo aperturadores:', error);
     return NextResponse.json(
-      { message: 'Error al obtener aperturadores', error: error.message },
+      { message: 'Error al obtener aperturadores' },
       { status: 500 }
     );
   }

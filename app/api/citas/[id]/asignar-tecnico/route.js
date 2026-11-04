@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Cita from '@/models/Cita';
 import Tecnico from '@/models/Tecnico';
+import { requireSession } from '@/lib/session';
+import { idSeguro } from '@/lib/sanitize';
 
 // POST /api/citas/[id]/asignar-tecnico
 // Body: { tecnicoId }
@@ -11,8 +13,12 @@ export async function POST(request, { params }) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['contratista', 'admin']);
+    if (error) return error;
+
     const { id } = await params;
-    const { tecnicoId } = await request.json();
+    const { tecnicoId: tecnicoIdBody } = await request.json();
+    const tecnicoId = idSeguro(tecnicoIdBody);
 
     if (!tecnicoId) {
       return NextResponse.json({ error: 'tecnicoId requerido' }, { status: 400 });
@@ -21,6 +27,11 @@ export async function POST(request, { params }) {
     const cita = await Cita.findById(id);
     if (!cita) {
       return NextResponse.json({ error: 'Cita no encontrada' }, { status: 404 });
+    }
+
+    // Solo el contratista de la cita (o admin) puede asignar técnico
+    if (session.role === 'contratista' && cita.contratista?.toString() !== session.id) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
     if (!['solicitada', 'atendida', 'cotizada', 'aceptada', 'en_progreso'].includes(cita.estado)) {
@@ -75,11 +86,17 @@ export async function DELETE(request, { params }) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['contratista', 'admin']);
+    if (error) return error;
+
     const { id } = await params;
 
     const cita = await Cita.findById(id);
     if (!cita) {
       return NextResponse.json({ error: 'Cita no encontrada' }, { status: 404 });
+    }
+    if (session.role === 'contratista' && cita.contratista?.toString() !== session.id) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
     cita.tecnico = null;

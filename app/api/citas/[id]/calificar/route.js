@@ -4,39 +4,19 @@ import { connectDB } from '@/lib/mongoose';
 import Cita from '@/models/Cita';
 import Contratista from '@/models/Contratista';
 import Calificacion from '@/models/Calificacion';
-import { verifyToken } from '@/lib/auth';
+import { requireSession } from '@/lib/session';
 
 export async function PUT(request, { params }) {
   try {
-    let clienteId = null;
-    let body = {};
+    const { session, error } = await requireSession(request, ['cliente']);
+    if (error) return error;
+    const clienteId = session.id;
 
-    // Intentar leer el body
+    let body = {};
     try {
       body = await request.json();
     } catch (e) {
-      console.log('No body or invalid json');
-    }
-
-    // Verificar Bearer token
-    const authHeader = request.headers.get('authorization');
-
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      const decoded = await verifyToken(token);
-
-      if (decoded) {
-        clienteId = decoded.id || decoded.userId;
-      }
-    }
-
-    // Si no hay token, usar ID del body
-    if (!clienteId && body.clienteId) {
-      clienteId = body.clienteId;
-    }
-
-    if (!clienteId) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+      body = {};
     }
 
     await connectDB();
@@ -138,8 +118,7 @@ export async function PUT(request, { params }) {
   } catch (error) {
     console.error('Error al calificar cita:', error);
     return NextResponse.json({
-      error: 'Error interno del servidor',
-      details: error.message
+      error: 'Error interno del servidor'
     }, { status: 500 });
   }
 }

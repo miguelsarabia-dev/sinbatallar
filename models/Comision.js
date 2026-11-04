@@ -33,9 +33,16 @@ const comisionSchema = new mongoose.Schema({
             porcentaje: { type: Number, default: 3, min: 0, max: 100 },
             monto: { type: Number, default: 0, min: 0 }
         },
+        // Snapshot de la parte del técnico (se resta a la del contratista)
+        tecnico: {
+            id: { type: mongoose.Schema.Types.ObjectId, ref: 'Tecnico' },
+            porcentaje: { type: Number, default: 0, min: 0, max: 100 },
+            monto: { type: Number, default: 0, min: 0 }
+        },
         contratista: {
             id: { type: mongoose.Schema.Types.ObjectId, ref: 'Contratista', required: true },
-            porcentaje: { type: Number, default: 85, min: 0, max: 100 },
+            porcentaje: { type: Number, default: 80, min: 0, max: 100 },
+            montoManoDeObraBruto: { type: Number, default: 0, min: 0 },
             montoManoDeObra: { type: Number, default: 0, min: 0 },
             montoMateriales: { type: Number, default: 0, min: 0 },
             montoTotal: { type: Number, default: 0, min: 0 }
@@ -43,8 +50,14 @@ const comisionSchema = new mongoose.Schema({
     },
     estadoPago: {
         type: String,
-        enum: ['pendiente', 'procesando', 'disponible', 'pagado', 'retenido', 'error'],
+        enum: ['pendiente', 'procesando', 'disponible', 'pagado', 'retenido', 'error', 'cancelada'],
         default: 'pendiente'
+    },
+    // El contratista libera al técnico su ganancia
+    liberacionTecnico: {
+        estado: { type: String, enum: ['pendiente', 'liberada'], default: 'pendiente' },
+        fecha: { type: Date, default: null },
+        por: { type: mongoose.Schema.Types.ObjectId, default: null }
     },
     fechaPago: { type: Date },
     notas: { type: String, trim: true }
@@ -55,46 +68,5 @@ const comisionSchema = new mongoose.Schema({
 // Índices (cita ya tiene índice por unique: true)
 comisionSchema.index({ 'distribucion.contratista.id': 1, estadoPago: 1 });
 comisionSchema.index({ createdAt: -1 });
-
-// Método para calcular distribución
-// Método para calcular distribución
-comisionSchema.methods.calcularDistribucion = function () {
-    const manoDeObra = this.manoDeObra;
-    const materiales = this.costoMateriales;
-    let porcentajePlataforma = 15; // Base si no hay intermediarios
-
-    // Aperturador: % de la mano de obra (si existe)
-    if (this.distribucion.aperturador.id) {
-        let pAperturador = this.distribucion.aperturador.porcentaje || 2;
-        this.distribucion.aperturador.monto = Math.round((manoDeObra * pAperturador) / 100);
-        porcentajePlataforma -= pAperturador;
-    }
-
-    // Incorporador: % de la mano de obra (si existe)
-    if (this.distribucion.incorporador.id) {
-        let pIncorporador = this.distribucion.incorporador.porcentaje || 3;
-        this.distribucion.incorporador.monto = Math.round((manoDeObra * pIncorporador) / 100);
-        porcentajePlataforma -= pIncorporador;
-    }
-
-    // Plataforma: % de la mano de obra final
-    this.distribucion.plataforma.porcentaje = porcentajePlataforma;
-    this.distribucion.plataforma.monto = Math.round((manoDeObra * porcentajePlataforma) / 100);
-
-    // Contratista: Materiales (100% reembolso) + % de Mano de Obra
-    this.distribucion.contratista.montoMateriales = materiales;
-    this.distribucion.contratista.montoManoDeObra = Math.round((manoDeObra * this.distribucion.contratista.porcentaje) / 100);
-    this.distribucion.contratista.montoTotal = this.distribucion.contratista.montoMateriales + this.distribucion.contratista.montoManoDeObra;
-
-    return this;
-};
-
-// Middleware pre-save
-comisionSchema.pre('save', function (next) {
-    if (this.isNew || this.isModified('manoDeObra') || this.isModified('costoMateriales')) {
-        this.calcularDistribucion();
-    }
-    next();
-});
 
 export default mongoose.models.Comision || mongoose.model('Comision', comisionSchema);

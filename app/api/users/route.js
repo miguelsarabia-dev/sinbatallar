@@ -4,6 +4,15 @@ import Incorporador from '@/models/Incorporador'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 import { enviarEmailBienvenidaCliente } from '@/lib/email-service'
+import { getSessionFromRequest } from '@/lib/session'
+
+// Roles que solo un admin puede crear/asignar (el registro público es solo para clientes).
+const ROLES_RESTRINGIDOS = ['aperturador', 'incorporador', 'admin'];
+
+async function esAdminLaPeticion(request) {
+    const session = await getSessionFromRequest(request);
+    return session?.role === 'admin';
+}
 
 // Garantiza que un usuario con rol incorporador tenga su doc en la colección
 // incorporadores. Idempotente: no duplica si ya existe. El registro de
@@ -42,29 +51,47 @@ function validateUserData(data, isRegister = false) {
     return errors;
 }
 
-// GET: Listar todos los usuarios o uno por ID
+// GET: Listar usuarios (admin) o leer uno por id / email / teléfono.
+// Requiere token. Un usuario solo puede leerse a sí mismo; el admin puede leer a cualquiera.
+// Nunca devuelve el password.
 export async function GET(request) {
     await connectDB();
+
+    const session = await getSessionFromRequest(request);
+    if (!session) {
+        return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    }
+    const admin = session.role === 'admin';
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     try {
         if (id) {
             let user;
             if (id.includes('@')) {
-                user = await User.findOne({ email: id });
+                user = await User.findOne({ email: id.toLowerCase() }).select('-password');
             } else if (/^[0-9a-fA-F]{24}$/.test(id)) {
-                user = await User.findById(id);
+                user = await User.findById(id).select('-password');
             } else {
-                user = await User.findOne({ telefono: id });
+                user = await User.findOne({ telefono: id }).select('-password');
+            }
+
+            const esElMismo = !!user && (String(user._id) === session.id || (!!session.email && user.email === session.email.toLowerCase()));
+            if (!admin && !esElMismo) {
+                // Mismo 403 exista o no el usuario: no se revela nada a quien no es el dueño.
+                return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
             }
             if (!user) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
             return NextResponse.json(user);
-        } else {
-            const users = await User.find({});
-            return NextResponse.json(users);
         }
+
+        if (!admin) {
+            return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+        }
+        const users = await User.find({}).select('-password');
+        return NextResponse.json(users);
     } catch (error) {
-        return NextResponse.json({ error: 'Error al obtener usuario(s)', details: error.message }, { status: 400 });
+        return NextResponse.json({ error: 'Error al obtener usuario(s)' }, { status: 400 });
     }
 }
 
@@ -102,12 +129,27 @@ export async function POST(request) {
             }
         }
 
+        // El login vive en POST /api/auth/login (con límite de intentos); aquí solo se registra.
+        if (!isRegister) {
+            return NextResponse.json({ error: 'Para iniciar sesión usa /api/auth/login' }, { status: 400 });
+        }
+        if (typeof email !== 'string' || typeof password !== 'string') {
+            return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+        }
+
         // Validación
         if (isRegister) {
             const errors = validateUserData({ email, password, nombre, telefono, role }, true);
             if (errors.length > 0) {
                 return NextResponse.json({ error: 'Datos inválidos', details: errors }, { status: 400 });
             }
+
+            const esAdminQuienCrea = await esAdminLaPeticion(request);
+            if (ROLES_RESTRINGIDOS.includes(role) && !esAdminQuienCrea) {
+                return NextResponse.json({ error: `Solo un administrador puede crear usuarios con rol ${role}` }, { status: 403 });
+            }
+            // Registro público: siempre cliente (cualquier otro rol lo asigna un admin)
+            if (!esAdminQuienCrea) role = 'cliente';
 
             const existingEmail = await User.findOne({ email });
             if (existingEmail) {
@@ -177,55 +219,76 @@ export async function POST(request) {
     } catch (error) {
         console.error('Error:', error);
         return NextResponse.json(
-            { error: 'Error del Servidor', details: error.message },
+            { error: 'Error del Servidor' },
             { status: 500 }
         );
     }
 }
 
-// PUT: Actualizar usuario existente
+// PUT: Actualizar usuario. Solo uno mismo (campos de perfil) o un admin (además rol).
+const CAMPOS_PERFIL = ['nombre', 'telefono', 'email', 'password', 'fotoUrl', 'fotoPublicId', 'identificacion', 'direcciones'];
+
 export async function PUT(request) {
     await connectDB();
+
+    const session = await getSessionFromRequest(request);
+    if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    const admin = session.role === 'admin';
+
     const contentType = request.headers.get('content-type') || '';
     let data = {};
 
     if (contentType.includes('application/json')) {
         data = await request.json();
-        if (data.password) {
-            data.password = await bcrypt.hash(data.password, 10);
-        }
     } else if (contentType.includes('multipart/form-data')) {
         const formData = await request.formData();
         data._id = formData.get('_id');
         data.nombre = formData.get('nombre');
         data.telefono = formData.get('telefono');
         data.email = formData.get('email');
-
-        const foto = formData.get('foto');
-        if (foto && typeof foto.arrayBuffer === 'function') {
-            const arrayBuffer = await foto.arrayBuffer();
-            data.foto = Buffer.from(arrayBuffer);
-        }
-
-        if (formData.get('password')) {
-            data.password = await bcrypt.hash(formData.get('password'), 10);
-        }
-    }
-
-    if (!data._id && !data.id) {
-        return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
+        if (formData.get('password')) data.password = formData.get('password');
     }
 
     const userId = data._id || data.id;
-
-    // Validación básica
-    if (data.role && !['cliente', 'contratista', 'admin', 'aperturador', 'incorporador'].includes(data.role)) {
-        return NextResponse.json({ error: 'Rol inválido' }, { status: 400 });
+    if (typeof userId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(userId)) {
+        return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
     }
 
+    // Solo el propio usuario o admin (un contratista no es un User: usa /api/contratistas)
+    if (!admin && userId !== session.id) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+
+    if (data.role !== undefined) {
+        if (!admin) {
+            return NextResponse.json({ error: 'Solo un administrador puede cambiar el rol' }, { status: 403 });
+        }
+        if (typeof data.role !== 'string' || !['cliente', 'admin', 'aperturador', 'incorporador', 'ferretero', 'tecnico'].includes(data.role)) {
+            return NextResponse.json({ error: 'Rol inválido' }, { status: 400 });
+        }
+    }
+
+    // Solo campos permitidos (nada de googleId, _id, etc.), y solo valores string/arreglos simples
+    const update = {};
+    for (const k of CAMPOS_PERFIL) {
+        if (data[k] === undefined) continue;
+        if (k === 'direcciones') { if (Array.isArray(data[k])) update[k] = data[k]; continue; }
+        if (typeof data[k] !== 'string') {
+            return NextResponse.json({ error: `Valor inválido en ${k}` }, { status: 400 });
+        }
+        update[k] = data[k];
+    }
+    if (admin && data.role) update.role = data.role;
+    if (update.password) {
+        if (update.password.length < 6) {
+            return NextResponse.json({ error: 'La contraseña debe tener al menos 6 caracteres' }, { status: 400 });
+        }
+        update.password = await bcrypt.hash(update.password, 10);
+    }
+    if (update.email) update.email = update.email.toLowerCase().trim();
+
     try {
-        const { _id, id, ...rest } = data;
-        const user = await User.findByIdAndUpdate(userId, rest, { new: true });
+        const user = await User.findByIdAndUpdate(userId, update, { new: true, runValidators: true });
         if (!user) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
 
         // Si el usuario quedó como incorporador, garantizar su doc para no
@@ -236,21 +299,24 @@ export async function PUT(request) {
 
         return NextResponse.json(user);
     } catch (error) {
-        return NextResponse.json({ error: 'Error al actualizar usuario', details: error.message }, { status: 400 });
+        return NextResponse.json({ error: 'Error al actualizar usuario' }, { status: 400 });
     }
 }
 
 // DELETE: Eliminar usuario
 export async function DELETE(request) {
     await connectDB();
+    if (!(await esAdminLaPeticion(request))) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
+    if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
     try {
         const deleted = await User.findByIdAndDelete(id);
         if (!deleted) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
         return NextResponse.json({ message: 'Eliminado' });
     } catch (error) {
-        return NextResponse.json({ error: 'Error al eliminar usuario', details: error.message }, { status: 400 });
+        return NextResponse.json({ error: 'Error al eliminar usuario' }, { status: 400 });
     }
 }

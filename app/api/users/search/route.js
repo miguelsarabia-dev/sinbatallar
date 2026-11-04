@@ -1,6 +1,8 @@
 import { connectDB } from '@/lib/mongoose';
 import User from '@/models/User';
 import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
+import { soloTexto } from '@/lib/sanitize';
 
 // GET: Buscar usuarios por email o teléfono
 export async function GET(request) {

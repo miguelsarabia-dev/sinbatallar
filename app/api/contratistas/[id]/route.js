@@ -3,17 +3,29 @@ import Area from '@/models/Area'
 import Contratista from '@/models/Contratista'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
+import { requireSession } from '@/lib/session'
+import { esObjectId, pick } from '@/lib/sanitize'
+import { relacionCon, camposPara, aplicarReglasAprobacion, SELECT_PUBLICO } from '@/lib/contratista-acceso'
 
 // GET: Obtener un contratista específico por ID
 export async function GET(request, { params }) {
   try {
     await connectDB();
+    const { session, error } = await requireSession(request);
+    if (error) return error;
     const { id } = await params;
+    if (!esObjectId(id)) return NextResponse.json({ error: 'Contratista no encontrado' }, { status: 404 });
 
     const contratista = await Contratista.findById(id).populate('servicios');
 
     if (!contratista) {
       return NextResponse.json({ error: 'Contratista no encontrado' }, { status: 404 });
+    }
+
+    // Perfil completo para admin / el propio / su incorporador; para el resto, solo datos públicos.
+    if (!(await relacionCon(session, contratista))) {
+      const publico = await Contratista.findById(id).select(SELECT_PUBLICO).populate('servicios', 'nombre categoria');
+      return NextResponse.json(publico);
     }
 
     return NextResponse.json(contratista);
@@ -71,7 +83,7 @@ export async function PUT(request, { params }) {
 
   } catch (error) {
     console.error('Error al actualizar contratista:', error);
-    return NextResponse.json({ error: 'Error interno del servidor', details: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
 
@@ -79,6 +91,8 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     await connectDB();
+    const { error } = await requireSession(request, ['admin']);
+    if (error) return error;
     const { id } = await params;
 
     const contratista = await Contratista.findByIdAndDelete(id);

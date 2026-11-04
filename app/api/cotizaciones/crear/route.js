@@ -5,17 +5,33 @@ import Cotizacion from '@/models/Cotizacion';
 import Contratista from '@/models/Contratista';
 import Cita from '@/models/Cita';
 import { enviarEmailCitaCotizada } from '@/lib/email-service';
+import Tecnico from '@/models/Tecnico';
+import { requireSession } from '@/lib/session';
+
 
 export async function POST(request) {
   try {
     await connectDB();
 
+    const { session, error } = await requireSession(request, ['contratista', 'tecnico']);
+    if (error) return error;
+
     const data = await request.json();
+
+    // Quién cotiza sale del token: un contratista cotiza como sí mismo; un técnico, para su contratista.
+    let contratistaId = session.id;
+    let tecnicoId = null;
+    if (session.role === 'tecnico') {
+      const tecnico = await Tecnico.findOne({ user: session.id }).select('_id contratista activo');
+      if (!tecnico || !tecnico.activo) {
+        return NextResponse.json({ error: 'Técnico no encontrado o inactivo' }, { status: 403 });
+      }
+      contratistaId = String(tecnico.contratista);
+      tecnicoId = String(tecnico._id);
+    }
 
     const {
       citaId,
-      contratistaId,
-      tecnicoId = null,
       manoDeObra = 0,
       materiales = [],
       descripcion,
@@ -47,7 +63,15 @@ export async function POST(request) {
     }
 
     // Verificar que el contratista existe
+    // La cita debe ser de este contratista (o aún sin asignar)
+    if (cita.contratista && cita.contratista.toString() !== contratistaId) {
+      return NextResponse.json({ error: 'Esta cita pertenece a otro contratista' }, { status: 403 });
+    }
+
     const contratista = await Contratista.findById(contratistaId);
+    if (contratista && !contratista.aprobado) {
+      return NextResponse.json({ error: 'Tu cuenta aún está en revisión' }, { status: 403 });
+    }
     if (!contratista) {
       return NextResponse.json(
         { error: 'Contratista no encontrado' },

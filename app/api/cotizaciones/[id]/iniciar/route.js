@@ -5,18 +5,22 @@ import Cotizacion from '../../../../../models/Cotizacion';
 import Cita from '../../../../../models/Cita';
 import Contratista from '../../../../../models/Contratista';
 import { enviarEmailCitaEnProgreso } from '@/lib/email-service';
+import { requireSession } from '@/lib/session';
+
 
 export async function PUT(request, { params }) {
   try {
     await connectDB();
 
-    const { id } = await params;
-    const { contratistaId } = await request.json();
+    const { session, error } = await requireSession(request, ['contratista', 'tecnico', 'admin']);
+    if (error) return error;
 
+    const { id } = await params;
+    let contratistaId = session.id;
+    if (session.role === 'tecnico') contratistaId = session.contratistaId;
+    if (session.role === 'admin') contratistaId = (await request.json().catch(() => ({}))).contratistaId;
     if (!contratistaId) {
-      return NextResponse.json({
-        error: 'ID del contratista requerido'
-      }, { status: 400 });
+      return NextResponse.json({ error: 'ID del contratista requerido' }, { status: 400 });
     }
 
     // Verificar que el contratista existe

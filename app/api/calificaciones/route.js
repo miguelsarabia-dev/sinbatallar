@@ -3,17 +3,25 @@ import { connectDB } from '@/lib/mongoose';
 import Calificacion from '@/models/Calificacion';
 import Contratista from '@/models/Contratista';
 import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
+import { esObjectId, escaparRegex, soloTexto } from '@/lib/sanitize';
+
 
 // GET: Obtener calificaciones
 export async function GET(request) {
   await connectDB();
 
+  const { session, error } = await requireSession(request);
+  if (error) return error;
+
   try {
     const { searchParams } = new URL(request.url);
-    const tipo = searchParams.get('tipo'); // 'contratista'
-    const calificadoId = searchParams.get('calificadoId');
-    const citaId = searchParams.get('citaId');
-    const clienteId = searchParams.get('clienteId');
+    const tipo = soloTexto(searchParams.get('tipo')); // 'contratista'
+    const calificadoId = esObjectId(searchParams.get('calificadoId')) ? searchParams.get('calificadoId') : null;
+    const citaId = esObjectId(searchParams.get('citaId')) ? searchParams.get('citaId') : null;
+    // Un cliente solo puede pedir sus propias calificaciones emitidas; las de un contratista son públicas.
+    const clienteId = session.role === 'cliente' ? session.id
+      : (esObjectId(searchParams.get('clienteId')) ? searchParams.get('clienteId') : null);
 
     let filter = {};
 
@@ -29,13 +37,13 @@ export async function GET(request) {
       filter.cita = citaId;
     }
 
-    if (clienteId) {
+    if (clienteId && (session.role !== 'cliente' || !calificadoId)) {
       filter.cliente = clienteId;
     }
 
     const calificaciones = await Calificacion.find(filter)
       .populate('cita', 'estado servicio fechaProgramada')
-      .populate('cliente', 'nombre email')
+      .populate('cliente', 'nombre')
       .sort({ createdAt: -1 });
 
     return NextResponse.json(calificaciones);
@@ -53,10 +61,13 @@ export async function GET(request) {
 export async function POST(request) {
   await connectDB();
 
+  const { session, error } = await requireSession(request, ['cliente']);
+  if (error) return error;
+  const clienteId = session.id; // del token
+
   try {
     const {
       citaId,
-      clienteId,
       calificadoId,
       tipoCalificado,
       puntaje,
@@ -65,7 +76,7 @@ export async function POST(request) {
     } = await request.json();
 
     // Validar datos requeridos
-    if (!citaId || !clienteId || !calificadoId || !tipoCalificado || !puntaje) {
+    if (!esObjectId(citaId) || !esObjectId(calificadoId) || !tipoCalificado || !puntaje) {
       return NextResponse.json({
         error: 'citaId, clienteId, calificadoId, tipoCalificado y puntaje son requeridos'
       }, { status: 400 });
@@ -81,6 +92,15 @@ export async function POST(request) {
       return NextResponse.json({
         error: 'El puntaje debe estar entre 1 y 5'
       }, { status: 400 });
+    }
+
+    // La cita debe ser del cliente del token y estar completada
+    const citaDelCliente = await (await import('@/models/Cita')).default.findOne({ _id: citaId, cliente: clienteId }).select('estado');
+    if (!citaDelCliente) {
+      return NextResponse.json({ error: 'No tienes permisos para calificar esta cita' }, { status: 403 });
+    }
+    if (citaDelCliente.estado !== 'completada') {
+      return NextResponse.json({ error: 'Solo se pueden calificar servicios completados' }, { status: 400 });
     }
 
     // Verificar si ya existe una calificación para esta cita y tipo
