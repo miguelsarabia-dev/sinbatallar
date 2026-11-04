@@ -4,7 +4,6 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Cita from '@/models/Cita';
 import { requireSession } from '@/lib/session';
-import { enviarPush } from '@/lib/push';
 
 
 export async function PATCH(request, { params }) {
@@ -40,12 +39,6 @@ export async function PATCH(request, { params }) {
       usuario: session.id
     });
     await cita.save({ validateModifiedOnly: true });
-
-    await enviarPush([cita.cliente], {
-      titulo: 'Tu reembolso fue resuelto',
-      cuerpo: nota ? String(nota).slice(0, 120) : 'El administrador resolvió tu reembolso',
-      data: { tipo: 'reembolso_resuelto', citaId: String(cita._id) }
-    });
 
     return NextResponse.json({ success: true, reembolso: cita.reembolso });
   } catch (error) {

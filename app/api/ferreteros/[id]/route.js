@@ -1,6 +1,5 @@
 // app/api/ferreteros/[id]/route.js
 import { NextResponse } from 'next/server';
-import { enviarPush } from '@/lib/push';
 import { requireSession, getSessionFromRequest } from '@/lib/session';
 import { esObjectId, pick } from '@/lib/sanitize';
 
@@ -65,11 +64,7 @@ export async function PUT(request, { params }) {
       };
     }
 
-    const recienActivado = body.activo === true && session.role === 'admin' && !ferretero.isNew && ferretero.isModified('activo');
     await ferretero.save();
-    if (recienActivado) {
-      await enviarPush([ferretero.user], { titulo: '¡Cuenta aprobada!', cuerpo: 'Tu ferretería ya está activa', data: { tipo: 'cuenta_aprobada' } });
-    }
 
     // Si se desactiva el catálogo, desactivar todos sus materiales también
     if (body.catalogoActivo === false) {

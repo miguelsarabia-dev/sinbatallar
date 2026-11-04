@@ -8,7 +8,6 @@ import Contratista from '@/models/Contratista';
 import { requireSession } from '@/lib/session';
 import { esObjectId } from '@/lib/sanitize';
 import { coincideEspecialidad } from '@/lib/especialidades';
-import { enviarPush } from '@/lib/push';
 import { enviarEmailTecnicoTomoCita } from '@/lib/email-service';
 
 export async function POST(request, { params }) {
@@ -42,18 +41,13 @@ export async function POST(request, { params }) {
 
     if (!cita) return NextResponse.json({ error: 'Ya fue tomado' }, { status: 409 });
 
-    // Aviso al contratista (email + push, no bloqueante)
-    Contratista.findById(tecnico.contratista).select('email nombre').lean().then(contratista => Promise.all([
+    // Aviso por email al contratista (no bloqueante)
+    Contratista.findById(tecnico.contratista).select('email nombre').lean().then(contratista =>
       enviarEmailTecnicoTomoCita({
         contratista, tecnico: tecnico.user?.nombre, servicio: cita.servicio?.nombre,
         fecha: cita.fechaProgramada ? new Date(cita.fechaProgramada).toLocaleString('es-MX') : null
-      }),
-      enviarPush([tecnico.contratista], {
-        titulo: 'Un técnico tomó un servicio',
-        cuerpo: `${tecnico.user?.nombre || 'Tu técnico'} tomó ${cita.servicio?.nombre || 'un servicio'}`,
-        data: { tipo: 'tecnico_tomo_cita', citaId: String(cita._id) }
       })
-    ])).catch(err => console.error('Error avisando que el técnico tomó la cita:', err));
+    ).catch(err => console.error('Error avisando que el técnico tomó la cita:', err));
 
     return NextResponse.json({ success: true, message: 'Servicio tomado', cita });
   } catch (error) {

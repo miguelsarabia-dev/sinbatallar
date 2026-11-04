@@ -8,7 +8,6 @@ import Contratista from '@/models/Contratista';
 import Comprobante from '@/models/Comprobante';
 import { enviarEmailsCitaAceptada, enviarEmailsCitaCancelada, enviarEmailCitaCotizada } from '@/lib/email-service';
 import { requireSession } from '@/lib/session';
-import { enviarPush } from '@/lib/push';
 
 import Tecnico from '@/models/Tecnico';
 import { esObjectId } from '@/lib/sanitize';
@@ -313,11 +312,6 @@ export async function PATCH(request, { params }) {
         }
         await cita.populate('cliente', 'nombre email telefono');
         await cita.populate('servicio', 'nombre descripcion categoria');
-        await enviarPush([cita.cliente?._id || cita.cliente], {
-          titulo: 'Tienes una cotización',
-          cuerpo: 'Revisa y acepta la cotización de tu servicio',
-          data: { tipo: 'cotizacion_enviada', citaId: String(cita._id), cotizacionId: String(cotizacion._id) }
-        });
         enviarEmailCitaCotizada({
           cita,
           cliente: cita.cliente,

@@ -10,8 +10,6 @@ import { uploadMultipleImages } from '@/lib/cloudinary';
 import { resolverAreaId } from '@/lib/geo-utils';
 import Comision from '@/models/Comision';
 import { idSeguro } from '@/lib/sanitize';
-import { enviarPush } from '@/lib/push';
-import Area from '@/models/Area';
 import Tecnico from '@/models/Tecnico';
 import { getSessionFromRequest, requireSession } from '@/lib/session';
 import { cambiarEstadoCita } from '@/lib/citas-estado';
@@ -228,20 +226,6 @@ export async function POST(request) {
     const servicio = await Servicio.findById(servicioId);
     const cliente = await User.findById(clienteId);
 
-    // Aviso push a los contratistas que pueden atenderla (aprobados, disponibles, de la zona y con el servicio)
-    try {
-      const area = ubicacion.zona ? await Area.findById(ubicacion.zona).select('contratistas').lean() : null;
-      if (area?.contratistas?.length) {
-        const elegibles = await Contratista.find({
-          _id: { $in: area.contratistas }, aprobado: true, activo: true, servicios: servicioId
-        }).select('_id').lean();
-        await enviarPush(elegibles.map(c => c._id), {
-          titulo: nuevaCita.esExpress ? '¡Servicio EXPRESS disponible!' : 'Nueva solicitud de servicio',
-          cuerpo: `${servicio?.nombre || 'Servicio'} en tu zona`,
-          data: { tipo: 'cita_nueva', citaId: String(nuevaCita._id), urgente: !!nuevaCita.esExpress }
-        });
-      }
-    } catch (e) { console.error('Error avisando cita nueva:', e); }
 
     enviarNotificacionCambioEstado({
       nuevoEstado: 'solicitada',

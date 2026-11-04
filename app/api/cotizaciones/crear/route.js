@@ -7,7 +7,6 @@ import Cita from '@/models/Cita';
 import { enviarEmailCitaCotizada } from '@/lib/email-service';
 import Tecnico from '@/models/Tecnico';
 import { requireSession } from '@/lib/session';
-import { enviarPush } from '@/lib/push';
 
 
 
@@ -151,13 +150,6 @@ export async function POST(request) {
     }
 
     await cita.save();
-
-    // Push: estimación del técnico -> contratista para revisar; cotización enviada -> cliente
-    await enviarPush(visibleAlCliente ? [cita.cliente?._id || cita.cliente] : [contratistaId], {
-      titulo: visibleAlCliente ? 'Tienes una cotización' : 'Estimación por revisar',
-      cuerpo: visibleAlCliente ? 'Revisa y acepta la cotización de tu servicio' : 'Un técnico envió una estimación para tu revisión',
-      data: { tipo: visibleAlCliente ? 'cotizacion_enviada' : 'cotizacion_pendiente_contratista', citaId: String(cita._id), cotizacionId: String(cotizacion._id) }
-    });
 
     if (visibleAlCliente) {
       enviarEmailCitaCotizada({
