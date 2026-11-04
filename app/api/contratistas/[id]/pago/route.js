@@ -57,10 +57,17 @@ export async function PUT(request, { params }) {
   try {
     await connectDB();
 
-
+    const { session, error } = await requireSession(request, ['contratista', 'admin']);
+    if (error) return error;
 
     const { id } = await params;
+    if (!esObjectId(id) || (session.role === 'contratista' && session.id !== id)) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
     const { banco, numeroCuenta, clabe, nombreTitular } = await request.json();
+    for (const v of [banco, numeroCuenta, clabe, nombreTitular]) {
+      if (typeof v !== 'string') return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+    }
 
     // Validaciones básicas
     if (!banco?.trim() || !numeroCuenta?.trim() || !clabe?.trim() || !nombreTitular?.trim()) {
