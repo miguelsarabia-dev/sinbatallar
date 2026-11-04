@@ -6,6 +6,8 @@ import { FaStar, FaCar, FaChevronDown, FaChevronUp, FaMapMarkerAlt, FaCalendarAl
 import { useModal } from '../../../hooks/useModal';
 import Modal from '../../ui/Modal';
 import PaymentModal from '../../ui/PaymentModal';
+import PagoClienteCita from '../../pagos/PagoClienteCita';
+import HistorialPagosCliente from '../../pagos/HistorialPagosCliente';
 import CotizacionCliente from './CotizacionCliente';
 import ImageViewer from '../../extra/ImageViewer';
 
@@ -52,7 +54,7 @@ export default function CitasCliente() {
       if (cita.calificadoContratista) return false;
 
       // Citas completadas siempre deben calificarse
-      if (cita.estado === 'completada') return true;
+      if (cita.estado === 'completada') return cita.pagado === true; // primero confirmar y pagar el saldo
 
       // Citas canceladas SOLO si fue por rechazo de cotización
       // (no cancelación directa del cliente)
@@ -131,7 +133,9 @@ export default function CitasCliente() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           estado: 'aceptada',
-          paymentInfo: paymentResult
+          // El comprobante ya se subió (POST /api/comprobantes) en el PaymentModal
+          modalidadPago: paymentResult.modalidadPago,
+          paymentInfo: { tipo: paymentResult.tipo, comprobanteDeclarado: true, via: 'comprobante' }
         })
       });
 
@@ -315,7 +319,7 @@ export default function CitasCliente() {
 
   const citasFiltradas = citas.filter(cita => {
     if (filtroEstado === 'todas') return true;
-    if (filtroEstado === 'activas') return !['completada', 'cancelada', 'no_presentado'].includes(cita.estado);
+    if (filtroEstado === 'activas') return !['completada', 'cancelada', 'no_presentado'].includes(cita.estado) || (cita.estado === 'completada' && !cita.pagado);
     return cita.estado === filtroEstado;
   });
 
@@ -541,6 +545,9 @@ export default function CitasCliente() {
                     </div>
                   )}
 
+                  {/* Pagos: reintentar comprobante rechazado, confirmar trabajo y pagar saldo */}
+                  <PagoClienteCita cita={cita} onChanged={cargarCitas} showError={showError} showSuccess={showSuccess} />
+
                   {/* Botones de acción FUERA del drawer */}
                   <div className="mt-3 sm:mt-4 flex flex-col xs:flex-row gap-2">
                     {['solicitada', 'atendida', 'cotizada'].includes(cita.estado) && (
@@ -737,6 +744,8 @@ export default function CitasCliente() {
           </div>
         </Modal>
       )}
+
+      <HistorialPagosCliente />
 
       {/* Payment Modal */}
       <PaymentModal

@@ -25,6 +25,7 @@ import ImageUploader from '../../extra/ImageUploader';
 import { useModal } from '../../../hooks/useModal';
 import Modal from '../../ui/Modal';
 import BuscadorMateriales from '../../ui/BuscadorMateriales';
+import RevisionPagoContratista from '../../pagos/RevisionPagoContratista';
 
 /**
  * Componente unificado para gestión de citas
@@ -60,12 +61,13 @@ export default function GestionCitas({
   const fetchCitas = useCallback(async () => {
     try {
       setLoading(true);
-      const params = `contratistaId=${userId}&estado=solicitada,atendida,cotizada,aceptada,en_progreso,verificando_pago`;
+      const params = `contratistaId=${userId}&estado=solicitada,atendida,cotizada,aceptada,en_progreso,verificando_pago,completada`;
 
       const response = await fetch(`/api/citas?${params}`);
       if (response.ok) {
         const data = await response.json();
-        setCitas(data);
+        // Las completadas solo interesan mientras falte verificar el saldo (no están pagadas)
+        setCitas(data.filter(c => c.estado !== 'completada' || !c.pagado));
       }
     } catch (error) {
       console.error('Error al cargar citas:', error);
@@ -773,6 +775,10 @@ export default function GestionCitas({
                     <FaPlay />
                     {loadingAction === `iniciar-${cotizacionActiva._id}` ? 'Iniciando...' : 'Iniciar Trabajo'}
                   </button>
+                )}
+
+                {role === 'contratista' && (
+                  <RevisionPagoContratista cita={cita} onChanged={fetchCitas} showError={onError} showSuccess={onSuccess} />
                 )}
 
                 {puedeCompletar && (
