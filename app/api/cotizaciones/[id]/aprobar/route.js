@@ -56,9 +56,7 @@ export async function POST(request, { params }) {
       .populate('servicio', 'nombre');
 
     if (cita) {
-      if (cita.estado === 'solicitada') {
-        cita.estado = 'cotizada';
-      }
+      marcarCotizada(cita);
       await cita.save();
 
       // Enviar email de cotización al cliente

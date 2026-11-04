@@ -4,7 +4,6 @@ import { connectDB } from '@/lib/mongoose';
 import Cita from '@/models/Cita';
 import Tecnico from '@/models/Tecnico';
 import { requireSession } from '@/lib/session';
-import { enviarPush } from '@/lib/push';
 
 import { idSeguro } from '@/lib/sanitize';
 

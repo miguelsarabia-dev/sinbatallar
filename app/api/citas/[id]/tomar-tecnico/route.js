@@ -8,7 +8,6 @@ import Contratista from '@/models/Contratista';
 import { requireSession } from '@/lib/session';
 import { esObjectId } from '@/lib/sanitize';
 import { coincideEspecialidad } from '@/lib/especialidades';
-import { enviarPush } from '@/lib/push';
 import { enviarEmailTecnicoTomoCita } from '@/lib/email-service';
 
 export async function POST(request, { params }) {

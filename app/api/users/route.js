@@ -1,6 +1,7 @@
 import { connectDB } from '@/lib/mongoose'
 import User from '@/models/User'
 import Incorporador from '@/models/Incorporador'
+import Aperturador from '@/models/Aperturador'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 import { enviarEmailBienvenidaCliente } from '@/lib/email-service'
@@ -26,6 +27,18 @@ async function asegurarDocIncorporador(userId) {
         }
     } catch (err) {
         console.error('Error asegurando doc de incorporador:', err);
+    }
+}
+
+// Igual para aperturador: sin su perfil el usuario entra pero no puede operar (sus zonas quedarían huérfanas).
+async function asegurarDocAperturador(userId) {
+    try {
+        const existente = await Aperturador.findOne({ user: userId });
+        if (!existente) {
+            await Aperturador.create({ user: userId });
+        }
+    } catch (err) {
+        console.error('Error asegurando doc de aperturador:', err);
     }
 }
 
@@ -208,6 +221,9 @@ export async function POST(request) {
                 if (user.role === 'incorporador') {
                     await asegurarDocIncorporador(user._id);
                 }
+                if (user.role === 'aperturador') {
+                    await asegurarDocAperturador(user._id);
+                }
 
                 return NextResponse.json({
                     message: 'Usuario creado exitosamente',
@@ -314,6 +330,9 @@ export async function PUT(request) {
         // bloquear el registro de contratistas.
         if (user.role === 'incorporador') {
             await asegurarDocIncorporador(user._id);
+        }
+        if (user.role === 'aperturador') {
+            await asegurarDocAperturador(user._id);
         }
 
         return NextResponse.json(user);

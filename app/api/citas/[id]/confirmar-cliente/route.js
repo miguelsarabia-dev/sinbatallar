@@ -6,7 +6,6 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Cita from '@/models/Cita';
 import { requireSession } from '@/lib/session';
-import { enviarPush } from '@/lib/push';
 
 import { cerrarServicioSiCorresponde } from '@/lib/comisiones';
 

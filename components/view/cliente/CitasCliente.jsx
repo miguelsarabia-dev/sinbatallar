@@ -312,7 +312,8 @@ export default function CitasCliente() {
       'aceptada': 'Aceptada',
       'en_progreso': 'En Progreso',
       'completada': 'Completada',
-      'cancelada': 'Cancelada'
+      'cancelada': 'Cancelada',
+      'rechazada': 'Rechazada'
     };
     return labels[estado] || estado;
   };

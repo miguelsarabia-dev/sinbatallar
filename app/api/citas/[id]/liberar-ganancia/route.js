@@ -9,6 +9,7 @@ import Tecnico from '@/models/Tecnico';
 import { enviarPush } from '@/lib/push';
 
 
+
 async function liberar(request, params) {
   try {
     await connectDB();

@@ -7,6 +7,7 @@ import { requireSession } from '@/lib/session';
 import { enviarPush } from '@/lib/push';
 
 
+
 export async function PATCH(request, { params }) {
   try {
     await connectDB();

@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { requireSession, getSessionFromRequest } from '@/lib/session';
 import { esObjectId, pick } from '@/lib/sanitize';
+import { parseStock } from '@/lib/stock';
 
 import { connectDB } from '@/lib/mongoose';
 import Material from '@/models/Material';
@@ -62,7 +63,7 @@ export async function GET(request) {
 }
 
 // POST /api/materiales
-// Body: { nombre, descripcion, categoria, marca, unidad, precio, ferreteroUserId, imagenUrl, imagenPublicId }
+// Body: { nombre, descripcion, categoria, marca, unidad, precio, stock?, ferreteroUserId, imagenUrl, imagenPublicId }
 export async function POST(request) {
   try {
     await connectDB();
@@ -91,6 +92,10 @@ export async function POST(request) {
       return NextResponse.json({ error: 'El precio no puede ser negativo' }, { status: 400 });
     }
 
+    // stock: entero >= 0 se controla; vacío/null = sin control
+    const stock = parseStock(body.stock);
+    if (!stock.ok) return NextResponse.json({ error: stock.error }, { status: 400 });
+
     const material = await Material.create({
       nombre: body.nombre,
       descripcion: body.descripcion || '',
@@ -100,6 +105,7 @@ export async function POST(request) {
       precio: parseFloat(body.precio),
       imagenUrl: body.imagenUrl || '',
       imagenPublicId: body.imagenPublicId || '',
+      stock: stock.definido ? stock.valor : null,
       ferretero: ferreteroUserId
     });
 

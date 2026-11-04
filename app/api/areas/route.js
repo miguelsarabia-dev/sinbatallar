@@ -55,6 +55,13 @@ export async function POST(request) {
     const aperturadorId = session.role === 'aperturador' ? await perfilIdDe(session) : (esObjectId(body.aperturadorId) ? body.aperturadorId : null);
 
     // Validaciones
+    if (session.role === 'aperturador' && !aperturadorId) {
+      return NextResponse.json(
+        { error: 'Tu usuario no tiene perfil de aperturador. Pide a un administrador que lo cree (POST /api/aperturadores) antes de crear zonas.' },
+        { status: 409 }
+      );
+    }
+
     if (!nombre?.trim()) {
       return NextResponse.json(
         { error: 'El nombre del área es requerido' },
