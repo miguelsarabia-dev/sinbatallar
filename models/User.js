@@ -14,6 +14,8 @@ const userSchema = new mongoose.Schema({
     default: 'cliente'
   },
   fotoUrl: { type: String, trim: true },
+  suspendido: { type: Boolean, default: false },
+  motivoSuspension: { type: String, trim: true },
   fotoPublicId: { type: String, trim: true },
   identificacion: { type: String, trim: true },
   direcciones: [{
