@@ -5,11 +5,19 @@ import { connectDB } from '@/lib/mongoose';
 import Contratista from '@/models/Contratista';
 import { hashPassword } from '@/lib/auth';
 import { enviarEmailBienvenidaContratista } from '@/lib/email-service';
+import { limitarPorIp } from '@/lib/rate-limit';
 
 export async function POST(request) {
   try {
     await connectDB();
 
+    const espera = await limitarPorIp(request, 'solicitud-contratista', 5);
+    if (espera) {
+      return NextResponse.json(
+        { error: 'Demasiados intentos de registro. Intenta de nuevo más tarde.' },
+        { status: 429, headers: { 'Retry-After': String(espera) } }
+      );
+    }
     const { nombre, direccion, telefono, email, password, servicios, ubicacion } = await request.json();
 
     if (!nombre || !direccion || !telefono || !email || !password) {

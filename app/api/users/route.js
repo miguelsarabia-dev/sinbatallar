@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 import { enviarEmailBienvenidaCliente } from '@/lib/email-service'
 import { getSessionFromRequest } from '@/lib/session'
+import { limitarPorIp } from '@/lib/rate-limit'
 
 // Roles que solo un admin puede crear/asignar (el registro público es solo para clientes).
 const ROLES_RESTRINGIDOS = ['aperturador', 'incorporador', 'admin'];
@@ -103,6 +104,16 @@ export async function GET(request) {
 export async function POST(request) {
     try {
         await connectDB();
+        // Registro público: límite por IP (un admin que crea cuentas no se limita)
+        if (!(await esAdminLaPeticion(request))) {
+            const espera = await limitarPorIp(request, 'registro-usuario', 10);
+            if (espera) {
+                return NextResponse.json(
+                    { error: 'Demasiados intentos de registro. Intenta de nuevo más tarde.' },
+                    { status: 429, headers: { 'Retry-After': String(espera) } }
+                );
+            }
+        }
         const contentType = request.headers.get('content-type') || '';
         let email, password, nombre, telefono, role, fotoBuffer;
         let isRegister = false;
