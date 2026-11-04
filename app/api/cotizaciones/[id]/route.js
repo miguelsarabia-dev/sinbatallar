@@ -242,12 +242,18 @@ export async function PATCH(request, { params }) {
       });
     }
 
-    const estadosPermitidos = ['enviada', 'aceptada', 'rechazada'];
+    const estadosPermitidos = ['enviada', 'aceptada', 'rechazada', 'rechazada_contratista'];
     if (!estadosPermitidos.includes(estado)) {
       return NextResponse.json(
         { error: `Estado no válido. Debe ser: ${estadosPermitidos.join(', ')}` },
         { status: 400 }
       );
+    }
+
+    // Rechazar (el cliente una cotización, o el contratista la estimación del técnico) exige un motivo
+    const motivoRechazoBody = typeof body.motivoRechazo === 'string' ? body.motivoRechazo.trim() : '';
+    if ((estado === 'rechazada' || estado === 'rechazada_contratista') && !motivoRechazoBody) {
+      return NextResponse.json({ error: 'motivoRechazo es obligatorio para rechazar' }, { status: 400 });
     }
 
     const cotizacion = await Cotizacion.findById(id).populate('cita');
@@ -275,7 +281,7 @@ export async function PATCH(request, { params }) {
 
       if (estado === 'rechazada_contratista') {
         cotizacion.estado = 'rechazada_contratista';
-        cotizacion.motivoRechazo = body.motivoRechazo?.trim() || '';
+        cotizacion.motivoRechazo = motivoRechazoBody;
         await cotizacion.save();
         return NextResponse.json({
           message: 'Estimación devuelta al técnico',
@@ -396,13 +402,15 @@ export async function PATCH(request, { params }) {
       }
     }
 
-    // Si se rechaza
+    // Si se rechaza (el motivo del cliente se guarda en la cotización y en la cancelación de la cita)
     if (estado === 'rechazada') {
+      cotizacion.motivoRechazo = motivoRechazoBody;
       const cita = await Cita.findById(cotizacion.cita);
 
       if (cita && cita.cotizaciones.length === 1) {
         cita.estado = 'cancelada';
-        cita.motivoCancelacion = 'Cotización rechazada por el cliente';
+        cita.motivoCancelacion = `Cotización rechazada por el cliente: ${motivoRechazoBody}`;
+        cita.historial.push({ estado: 'cancelada', fecha: new Date(), comentario: cita.motivoCancelacion, usuario: session.id });
         await cita.save();
 
         await cita.populate('cliente', 'nombre email telefono');
