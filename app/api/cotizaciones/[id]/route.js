@@ -291,7 +291,9 @@ export async function PATCH(request, { params }) {
           cantidad: parseFloat(m.cantidad) || 0,
           precioPorUnidad: parseFloat(m.precio ?? m.precioPorUnidad) || 0,
           total: parseFloat(m.total) || (parseFloat(m.cantidad) || 0) * (parseFloat(m.precio ?? m.precioPorUnidad) || 0),
-          materialCatalogoId: m.materialCatalogoId || null
+          materialCatalogoId: m.materialId || m.materialCatalogoId || null,
+          materialId: m.materialId || m.materialCatalogoId || null,
+          ferreteriaId: m.ferreteriaId || null
         }));
       }
       cotizacion.estado = 'enviada';

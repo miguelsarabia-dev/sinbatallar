@@ -47,8 +47,8 @@ export async function PUT(request, { params }) {
 
     // El ferretero edita su negocio; aprobar/activar la cuenta es solo del admin.
     const camposPermitidos = session.role === 'admin'
-      ? ['nombreNegocio', 'telefono', 'direccion', 'activo', 'catalogoActivo', 'pendienteAprobacion']
-      : ['nombreNegocio', 'telefono', 'direccion', 'catalogoActivo'];
+      ? ['nombreNegocio', 'telefono', 'direccion', 'horario', 'activo', 'catalogoActivo', 'pendienteAprobacion']
+      : ['nombreNegocio', 'telefono', 'direccion', 'horario', 'catalogoActivo'];
     if (session.role !== 'admin' && body.catalogoActivo === true && !ferretero.activo) {
       return NextResponse.json({ error: 'Tu cuenta aún no está aprobada' }, { status: 403 });
     }

@@ -39,9 +39,22 @@ export async function GET(request) {
 
     const materiales = await Material.find(filtro)
       .populate('ferretero', 'nombre')
-      .sort({ categoria: 1, nombre: 1 });
+      .sort({ categoria: 1, nombre: 1 })
+      .lean();
 
-    return NextResponse.json(materiales);
+    // Datos de la ferretería de cada material (para recoger/contactar): teléfono, dirección, ubicación GeoJSON y horario
+    const userIds = [...new Set(materiales.map(m => String(m.ferretero?._id || m.ferretero)))];
+    const ferreterias = await Ferretero.find({ user: { $in: userIds } }).select('user nombreNegocio telefono direccion ubicacion horario').lean();
+    const porUser = Object.fromEntries(ferreterias.map(f => [String(f.user), f]));
+
+    return NextResponse.json(materiales.map(m => {
+      const f = porUser[String(m.ferretero?._id || m.ferretero)];
+      return {
+        ...m,
+        stock: m.stock ?? null,
+        ferreteria: f ? { _id: f._id, nombreNegocio: f.nombreNegocio, telefono: f.telefono, direccion: f.direccion, ubicacion: f.ubicacion, horario: f.horario } : null
+      };
+    }));
   } catch (error) {
     console.error('Error en GET /api/materiales:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });

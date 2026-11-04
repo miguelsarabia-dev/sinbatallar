@@ -13,6 +13,7 @@ import Comprobante from '@/models/Comprobante';
 import { enviarNotificacionCambioEstado, enviarEmailComprobanteRechazado } from '@/lib/email-service';
 import { requireSession } from '@/lib/session';
 import { cerrarServicioSiCorresponde } from '@/lib/comisiones';
+import { crearSolicitudesAutomaticas } from '@/lib/solicitudes-material';
 
 const TIPOS_VALIDOS = ['anticipo', 'saldo', 'total'];
 
@@ -128,6 +129,9 @@ export async function PATCH(request, { params }) {
       });
       await cita.save({ validateModifiedOnly: true });
       citaEnProgreso = true;
+
+      // Pide a las ferreterías los materiales de la cotización (un fallo aquí no bloquea la verificación)
+      await crearSolicitudesAutomaticas(cita, cotizacion);
 
       const citaPoblada = await Cita.findById(cita._id)
         .populate('cliente', 'nombre email telefono')

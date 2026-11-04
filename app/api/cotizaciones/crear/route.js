@@ -96,7 +96,9 @@ export async function POST(request) {
         precioPorUnidad,
         // total siempre se calcula en el backend, no se confía en el que envíe el cliente.
         total: cantidad * precioPorUnidad,
-        materialCatalogoId: material.materialCatalogoId || null
+        materialCatalogoId: material.materialId || material.materialCatalogoId || null,
+        materialId: material.materialId || material.materialCatalogoId || null,
+        ferreteriaId: material.ferreteriaId || null
       };
     });
 
