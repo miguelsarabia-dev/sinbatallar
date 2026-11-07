@@ -1,4 +1,5 @@
 "use client";
+import GananciasRol from '../../features/finance/GananciasRol';
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -1107,6 +1108,8 @@ export default function IncorporadorDashboard() {
           {/* Content */}
           <div className="p-6">
             <div className="space-y-6">
+              <GananciasRol role="incorporador" titulo="Mis comisiones por servicios de tus contratistas" />
+
               {/* Tabs */}
               <div className="bg-white rounded-lg shadow border border-gray-200 p-4">
                 <div className="flex space-x-2 overflow-x-auto">

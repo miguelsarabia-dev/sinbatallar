@@ -6,6 +6,7 @@ import { Modal } from "../../ui";
 import { useModal } from "../../../hooks/useModal";
 import { formatDate } from "../../../lib/date-utils";
 import DelimitadorAreas from "../../maps/DelimitadorAreasWrapper";
+import GananciasRol from "../../features/finance/GananciasRol";
 import VisualizadorZonas from "../../maps/VisualizadorZonas";
 import { 
   FaMapMarkedAlt, FaSignOutAlt, FaPlus, FaSync, FaTimes,
@@ -413,6 +414,8 @@ export default function AperturadorDashboard() {
           {/* Content */}
           <div className="p-6">
             <div className="space-y-6">
+              <GananciasRol role="aperturador" titulo="Mis comisiones por servicios en tus zonas" />
+
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-gray-900">Mis Zonas</h2>
                 <div className="flex gap-3">

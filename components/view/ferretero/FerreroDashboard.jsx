@@ -1,5 +1,6 @@
 'use client';
 
+import VentasSurtidasFerretero from '../../features/finance/VentasSurtidasFerretero';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth, signOut } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -388,6 +389,8 @@ export default function FerreroDashboard() {
               <div className="text-3xl font-bold">{totalActivos}</div>
               <div className="text-sm opacity-90">Materiales activos</div>
             </div>
+
+            <VentasSurtidasFerretero />
 
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-gray-50 rounded-lg p-3 text-center">
