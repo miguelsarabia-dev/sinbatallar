@@ -7,6 +7,8 @@ import { enviarEmailBienvenidaContratista } from '@/lib/email-service'
 import { requireSession, getSessionFromRequest } from '@/lib/session'
 import { esObjectId, pick, soloTexto } from '@/lib/sanitize'
 import { relacionCon, camposPara, incorporadorDe, aplicarReglasAprobacion, SELECT_PUBLICO } from '@/lib/contratista-acceso'
+import { permisoCambioZona } from '@/lib/datos-incorporacion'
+import { validarZona } from '@/lib/zona-contratista'
 
 // GET: Listar todos los contratistas o uno por ID
 // Query: ?id=  ?incorporadorId=  ?sinIncorporador=true  ?estatus=pendiente|activo|rechazado|suspendido
@@ -167,7 +169,16 @@ export async function PUT(req) {
     // Solo admin, el propio contratista o su incorporador, cada uno con sus campos permitidos
     const relacion = await relacionCon(session, contratistaActual);
     if (!relacion) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    // La zona la asigna el incorporador (o el admin): si el contratista la manda, 403 explícito, no se ignora
+    const permisoZona = permisoCambioZona(relacion, body.areaId);
+    if (!permisoZona.ok) return NextResponse.json({ error: permisoZona.error }, { status: permisoZona.status });
+
     let data = pick(body, camposPara(relacion));
+    if (data.areaId !== undefined) {
+      const zona = await validarZona(data.areaId);
+      if (!zona.ok) return NextResponse.json({ error: zona.error }, { status: zona.status });
+      data.areaId = zona.areaId;
+    }
     const reglas = aplicarReglasAprobacion(relacion, contratistaActual, data);
     if (reglas.error) return NextResponse.json({ error: reglas.error.message, ...(reglas.error.faltantes ? { faltantes: reglas.error.faltantes } : {}) }, { status: reglas.error.status });
     data = reglas.data;

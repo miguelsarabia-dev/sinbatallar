@@ -6,6 +6,8 @@ import bcrypt from 'bcrypt'
 import { requireSession } from '@/lib/session'
 import { esObjectId, pick } from '@/lib/sanitize'
 import { relacionCon, camposPara, aplicarReglasAprobacion, SELECT_PUBLICO } from '@/lib/contratista-acceso'
+import { permisoCambioZona } from '@/lib/datos-incorporacion'
+import { validarZona } from '@/lib/zona-contratista'
 
 // GET: Obtener un contratista específico por ID
 export async function GET(request, { params }) {
@@ -53,7 +55,18 @@ export async function PUT(request, { params }) {
     const relacion = await relacionCon(session, contratistaActual);
     if (!relacion) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
-    let data = pick(await request.json(), camposPara(relacion));
+    const body = await request.json();
+
+    // La zona la asigna el incorporador (o el admin): si el contratista la manda, 403 explícito, no se ignora
+    const permisoZona = permisoCambioZona(relacion, body.areaId);
+    if (!permisoZona.ok) return NextResponse.json({ error: permisoZona.error }, { status: permisoZona.status });
+
+    let data = pick(body, camposPara(relacion));
+    if (data.areaId !== undefined) {
+      const zona = await validarZona(data.areaId);
+      if (!zona.ok) return NextResponse.json({ error: zona.error }, { status: zona.status });
+      data.areaId = zona.areaId;
+    }
     const reglas = aplicarReglasAprobacion(relacion, contratistaActual, data);
     if (reglas.error) {
       return NextResponse.json(
