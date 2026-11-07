@@ -243,28 +243,30 @@ export default function IncorporadorDashboard() {
     );
   };
 
-  const handleToggleContratistaStatus = async (contratistaId, currentStatus) => {
-    const isCurrentlyActive = currentStatus !== false;
-    const newStatus = !isCurrentlyActive;
-    
+  // Aprobar / quitar la aprobación (el incorporador dueño la da; la disponibilidad `activo` la maneja el contratista).
+  // Aprobar exige los datos escritos requeridos y la zona: el servidor responde 400 con `faltantes`.
+  const NOMBRES_DATOS = { nombre: 'nombre', email: 'email', telefono: 'teléfono', curp: 'CURP', direccion: 'dirección', especialidad: 'especialidad', zona: 'zona' };
+  const handleToggleContratistaStatus = async (contratistaId, aprobadoActual) => {
+    const aprobar = !aprobadoActual;
     try {
       const response = await fetch(`/api/contratistas/${contratistaId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ activo: newStatus }),
+        body: JSON.stringify({ aprobado: aprobar }),
       });
 
       if (response.ok) {
-        showSuccess(`Contratista ${newStatus ? 'activado' : 'desactivado'} correctamente`);
+        showSuccess(aprobar ? 'Contratista aprobado' : 'Aprobación retirada');
         loadData();
       } else {
-        const error = await response.json();
-        showError(error.error || 'Error al actualizar estado');
+        const error = await response.json().catch(() => null);
+        const faltan = error?.faltantes?.map(f => NOMBRES_DATOS[f] || f).join(', ');
+        showError(faltan ? `Faltan datos para aprobarlo: ${faltan}` : (error?.error || 'Error al actualizar la aprobación'));
       }
     } catch (error) {
-      showError('Error de conexión al actualizar estado');
+      showError('Error de conexión al actualizar la aprobación');
     }
   };
 
@@ -832,84 +834,34 @@ export default function IncorporadorDashboard() {
 
   // Componente: Modal de Gestión de Zonas
   const GestionZonasModal = () => {
-    const [zonasAsignadas, setZonasAsignadas] = useState([]);
-    const [loadingZonas, setLoadingZonas] = useState(true);
+    // Un contratista tiene UNA zona (Contratista.areaId) y la asigna su incorporador: PUT /api/contratistas/:id { areaId }
+    const [zonaActual, setZonaActual] = useState(
+      selectedContratistaForZonas?.areaId?._id || selectedContratistaForZonas?.areaId || null
+    );
+    const [guardandoZona, setGuardandoZona] = useState(false);
 
-    useEffect(() => {
-      if (selectedContratistaForZonas) {
-        cargarZonasDelContratista();
-      }
-    }, [selectedContratistaForZonas]);
-
-    const cargarZonasDelContratista = async () => {
+    const asignarZona = async (areaId) => {
+      if (guardandoZona || areaId === zonaActual) return;
       try {
-        setLoadingZonas(true);
-        // Las zonas donde está el contratista
-        const zonasConEsteContratista = areasDisponibles.filter(area => 
-          area.contratistas && area.contratistas.some(c => 
-            (typeof c === 'string' ? c : c._id) === selectedContratistaForZonas._id
-          )
-        );
-        setZonasAsignadas(zonasConEsteContratista.map(z => z._id));
-      } catch (error) {
-        console.error('Error cargando zonas:', error);
-      } finally {
-        setLoadingZonas(false);
-      }
-    };
-
-    const handleToggleZona = async (areaId) => {
-      try {
-        const area = areasDisponibles.find(a => a._id === areaId);
-        if (!area) return;
-
-        const contratistaId = selectedContratistaForZonas._id;
-        const estaAsignado = zonasAsignadas.includes(areaId);
-
-        let nuevosContratistas;
-        if (estaAsignado) {
-          // Quitar
-          nuevosContratistas = (area.contratistas || [])
-            .map(c => typeof c === 'string' ? c : c._id)
-            .filter(id => id !== contratistaId);
-        } else {
-          // Agregar
-          nuevosContratistas = [
-            ...(area.contratistas || []).map(c => typeof c === 'string' ? c : c._id),
-            contratistaId
-          ];
-        }
-
-        const response = await fetch('/api/areas', {
+        setGuardandoZona(true);
+        const response = await fetch(`/api/contratistas/${selectedContratistaForZonas._id}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            _id: areaId,
-            contratistas: nuevosContratistas
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ areaId })
         });
-
+        const data = await response.json().catch(() => null);
         if (response.ok) {
-          showSuccess(`Contratista ${estaAsignado ? 'removido de' : 'asignado a'} la zona exitosamente`);
-          
-          // Actualizar estado local
-          if (estaAsignado) {
-            setZonasAsignadas(prev => prev.filter(id => id !== areaId));
-          } else {
-            setZonasAsignadas(prev => [...prev, areaId]);
-          }
-          
-          // Recargar datos generales
+          showSuccess(areaId ? 'Zona asignada al contratista' : 'Zona retirada del contratista');
+          setZonaActual(areaId);
           loadData();
         } else {
-          const error = await response.json();
-          showError(error.error || 'Error al actualizar zona');
+          showError(data?.error || 'Error al asignar la zona');
         }
       } catch (error) {
-        console.error('Error toggling zona:', error);
-        showError('Error de conexión al actualizar zona');
+        console.error('Error asignando zona:', error);
+        showError('Error de conexión al asignar la zona');
+      } finally {
+        setGuardandoZona(false);
       }
     };
 
@@ -920,7 +872,7 @@ export default function IncorporadorDashboard() {
             <div className="sticky top-0 bg-white border-b border-gray-200 px-4 md:px-6 py-4 z-10">
               <div className="flex justify-between items-start">
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-lg md:text-xl font-bold text-gray-900 truncate">Gestionar Zonas</h3>
+                  <h3 className="text-lg md:text-xl font-bold text-gray-900 truncate">Zona del contratista</h3>
                   <p className="text-xs md:text-sm text-gray-600 mt-1 truncate">
                     Contratista: <span className="font-semibold">{selectedContratistaForZonas?.nombre}</span>
                   </p>
@@ -929,7 +881,6 @@ export default function IncorporadorDashboard() {
                   onClick={() => {
                     setShowGestionZonasModal(false);
                     setSelectedContratistaForZonas(null);
-                    setZonasAsignadas([]);
                   }}
                   className="text-gray-500 hover:text-gray-700 p-2 -mr-2 ml-2 flex-shrink-0"
                 >
@@ -939,16 +890,23 @@ export default function IncorporadorDashboard() {
             </div>
 
             <div className="p-4 md:p-6">
-              {loadingZonas ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : (
+              {(
                 <>
                   <div className="mb-4 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-xs md:text-sm text-blue-800">
-                      <strong>Zonas asignadas:</strong> {zonasAsignadas.length} de {areasDisponibles.length} disponibles
+                      <strong>Zona del contratista:</strong>{' '}
+                      {zonaActual ? (areasDisponibles.find(a => a._id === zonaActual)?.nombre || 'Asignada') : 'Sin zona (es obligatoria para aprobarlo)'}
                     </p>
+                    {zonaActual && (
+                      <button
+                        type="button"
+                        onClick={() => asignarZona(null)}
+                        disabled={guardandoZona}
+                        className="mt-2 text-xs text-red-600 underline disabled:opacity-50"
+                      >
+                        Quitar zona
+                      </button>
+                    )}
                   </div>
 
                   <div className="space-y-2 md:space-y-3">
@@ -959,13 +917,7 @@ export default function IncorporadorDashboard() {
                       </div>
                     ) : (
                       areasDisponibles.map((area) => {
-                        const estaAsignado = zonasAsignadas.includes(area._id);
-                        const otrosContratistas = (area.contratistas || [])
-                          .filter(c => {
-                            const cId = typeof c === 'string' ? c : c._id;
-                            return cId !== selectedContratistaForZonas._id;
-                          })
-                          .length;
+                        const estaAsignado = zonaActual === area._id;
                         
                         return (
                           <div
@@ -975,14 +927,15 @@ export default function IncorporadorDashboard() {
                                 ? 'border-primary bg-primary/5'
                                 : 'border-gray-200 hover:border-gray-300'
                             }`}
-                            onClick={() => handleToggleZona(area._id)}
+                            onClick={() => asignarZona(area._id)}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex items-start gap-2 md:gap-3 flex-1 min-w-0">
                                 <input
-                                  type="checkbox"
+                                  type="radio"
+                                  name="zona-contratista"
                                   checked={estaAsignado}
-                                  onChange={() => handleToggleZona(area._id)}
+                                  onChange={() => asignarZona(area._id)}
                                   onClick={(e) => e.stopPropagation()}
                                   className="mt-0.5 w-5 h-5 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary flex-shrink-0"
                                 />
@@ -1001,11 +954,6 @@ export default function IncorporadorDashboard() {
                                     }`}>
                                       {area.clasificacion}
                                     </span>
-                                    {otrosContratistas > 0 && (
-                                      <span className="text-xs text-gray-500 whitespace-nowrap">
-                                        +{otrosContratistas} otro(s)
-                                      </span>
-                                    )}
                                   </div>
                                   {area.aperturador && (
                                     <p className="text-xs text-gray-500 mt-1 truncate">
@@ -1041,8 +989,7 @@ export default function IncorporadorDashboard() {
                       onClick={() => {
                         setShowGestionZonasModal(false);
                         setSelectedContratistaForZonas(null);
-                        setZonasAsignadas([]);
-                      }}
+                          }}
                       className="w-full px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium"
                     >
                       Cerrar
@@ -1218,9 +1165,9 @@ export default function IncorporadorDashboard() {
                 </div>
                 <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
                   <div className="text-2xl font-bold text-green-600">
-                    {contratistas.filter(c => c.activo !== false).length}
+                    {contratistas.filter(c => c.aprobado).length}
                   </div>
-                  <div className="text-sm text-gray-600">Activos</div>
+                  <div className="text-sm text-gray-600">Aprobados</div>
                 </div>
                 <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
                   <div className="text-2xl font-bold text-purple-600">
@@ -1291,22 +1238,23 @@ export default function IncorporadorDashboard() {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <button
-                                onClick={() => handleToggleContratistaStatus(contratista._id, contratista.activo)}
+                                onClick={() => handleToggleContratistaStatus(contratista._id, !!contratista.aprobado)}
                                 className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full transition-colors ${
-                                  contratista.activo !== false
+                                  contratista.aprobado
                                     ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                                    : 'bg-red-100 text-red-800 hover:bg-red-200'
+                                    : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
                                 }`}
+                                title={contratista.aprobado ? 'Quitar aprobación' : 'Aprobar (exige datos completos y zona)'}
                               >
-                                {contratista.activo !== false ? (
+                                {contratista.aprobado ? (
                                   <>
                                     <FaCheck size={10} />
-                                    Activo
+                                    Aprobado
                                   </>
                                 ) : (
                                   <>
                                     <FaBan size={10} />
-                                    Inactivo
+                                    En revisión · Aprobar
                                   </>
                                 )}
                               </button>

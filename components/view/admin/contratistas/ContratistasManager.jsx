@@ -108,7 +108,7 @@ export default function ContratistasManager({
   };
 
   // Aprobar / quitar aprobación. Aprobar valida en el servidor los datos escritos requeridos (400 con `faltantes`).
-  const NOMBRES_DATOS = { nombre: 'nombre', email: 'email', telefono: 'teléfono', curp: 'CURP', direccion: 'dirección', especialidad: 'especialidad' };
+  const NOMBRES_DATOS = { nombre: 'nombre', email: 'email', telefono: 'teléfono', curp: 'CURP', direccion: 'dirección', especialidad: 'especialidad', zona: 'zona' };
   const handleToggleApproval = (contratista) => {
     const aprobar = !contratista.aprobado;
     showConfirm(

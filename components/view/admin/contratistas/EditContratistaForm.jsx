@@ -19,6 +19,7 @@ export default function EditContratistaForm({
     servicios: (editingContratista?.servicios || []).map(servicio =>
       typeof servicio === 'string' ? servicio : servicio._id
     ),
+    areaId: editingContratista?.areaId?._id || editingContratista?.areaId || '',
     ubicacion: {
       lat: editingContratista?.ubicacion?.lat || 0,
       lng: editingContratista?.ubicacion?.lng || 0,
@@ -27,6 +28,16 @@ export default function EditContratistaForm({
   });
 
   const [showMapSelector, setShowMapSelector] = useState(false);
+
+  // Zonas disponibles para asignar (el admin y el incorporador dueño son quienes asignan la zona del contratista)
+  const [zonas, setZonas] = useState([]);
+  const zonaOriginal = editingContratista?.areaId?._id || editingContratista?.areaId || '';
+  useEffect(() => {
+    fetch('/api/areas')
+      .then(r => (r.ok ? r.json() : []))
+      .then(lista => setZonas(Array.isArray(lista) ? lista : []))
+      .catch(() => setZonas([]));
+  }, []);
 
   // Actualizar servicios cuando cambie editingContratista
   useEffect(() => {
@@ -57,7 +68,9 @@ export default function EditContratistaForm({
       showError('Todos los campos son obligatorios');
       return;
     }
-    onUpdate(formData);
+    // Solo se manda la zona si cambió (así editar otros datos no falla por una zona hoy inactiva)
+    const { areaId, ...resto } = formData;
+    onUpdate(areaId !== zonaOriginal ? { ...resto, areaId: areaId || null } : resto);
   };
 
   const handleLocationSelect = (locationData) => {
@@ -156,6 +169,25 @@ export default function EditContratistaForm({
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Zona del contratista
+            </label>
+            <select
+              value={formData.areaId}
+              onChange={(e) => setFormData({ ...formData, areaId: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="">Sin zona</option>
+              {zonas.map(z => (
+                <option key={z._id} value={z._id} disabled={z.activo === false && z._id !== zonaOriginal}>
+                  {z.nombre}{z.clasificacion ? ` (${z.clasificacion})` : ''}{z.activo === false ? ' — inactiva' : ''}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">La zona la asigna el incorporador o el administrador; es obligatoria para aprobar al contratista.</p>
           </div>
 
           {/* Servicios que puede ofrecer */}
