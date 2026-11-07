@@ -706,8 +706,9 @@ export default function FerreroDashboard() {
 
       {/* Modal formulario — inline para evitar remontaje en cada keystroke */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl my-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center z-50 p-4 overflow-y-auto">
+          {/* my-auto centra si cabe y, si es más alto que la pantalla, arranca arriba y se puede bajar (items-center cortaba el borde superior) */}
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl my-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center rounded-t-xl">
               <h3 className="text-lg font-bold text-gray-900">
                 {editandoId ? 'Editar material' : 'Nuevo material'}
