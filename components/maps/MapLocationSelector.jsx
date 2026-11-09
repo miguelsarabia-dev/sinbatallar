@@ -257,7 +257,7 @@ const MapLocationSelector = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl h-full max-h-[95vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl h-full max-h-[95vh] flex flex-col overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 sm:p-6 border-b flex-shrink-0">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-900">{title}</h2>
@@ -310,7 +310,7 @@ const MapLocationSelector = ({
         </div>
 
         {/* Mapa */}
-        <div className="flex-1 relative min-h-0">
+        <div className="flex-1 relative min-h-[240px]">
           {MapContainer && TileLayer && (
             <MapContainer
               center={mapCenter}

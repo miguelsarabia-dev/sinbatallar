@@ -8,8 +8,8 @@ import Comision from '@/models/Comision';
 import Cotizacion from '@/models/Cotizacion';
 import Cita from '@/models/Cita';
 import Tecnico from '@/models/Tecnico';
-import Aperturador from '@/models/Aperturador';
-import Incorporador from '@/models/Incorporador';
+import Area from '@/models/Area';
+import Contratista from '@/models/Contratista';
 import { requireSession } from '@/lib/session';
 import { perfilIdDe } from '@/lib/perfiles';
 import { getFinancialConfig, gananciaDeCita } from '@/lib/comisiones';
@@ -53,7 +53,10 @@ export async function GET(request) {
     const ahora = new Date();
     const fechaInicio = fechaInicioPeriodo(periodo);
 
-    // Identidad del usuario en las comisiones
+    // Identidad del usuario en las comisiones (aperturador/incorporador: id del perfil y, por zonas antiguas, del usuario)
+    const idsPerfilYUsuario = ['aperturador', 'incorporador'].includes(role)
+      ? [...new Set([await perfilIdDe(session), session.id].filter(Boolean))]
+      : [];
     const filtros = { estadoPago: { $ne: 'cancelada' }, createdAt: { $gte: fechaInicio } };
     let tecnicoId = null;
     if (role === 'contratista') {
@@ -64,9 +67,9 @@ export async function GET(request) {
       tecnicoId = tecnico._id;
       filtros['distribucion.tecnico.id'] = tecnicoId;
     } else if (role === 'aperturador') {
-      filtros['distribucion.aperturador.id'] = (await perfilIdDe(session)) || session.id;
+      filtros['distribucion.aperturador.id'] = { $in: idsPerfilYUsuario };   // zonas antiguas guardan el id de usuario
     } else if (role === 'incorporador') {
-      filtros['distribucion.incorporador.id'] = (await perfilIdDe(session)) || session.id;
+      filtros['distribucion.incorporador.id'] = { $in: idsPerfilYUsuario };
     }
 
     const campo = CAMPO_MONTO[role];
@@ -93,7 +96,7 @@ export async function GET(request) {
 
     // Pendiente: pago verificado (anticipo o pago único) pero servicio aún sin cerrar/comisionar.
     let pendiente = 0;
-    if (['contratista', 'tecnico', 'admin'].includes(role)) {
+    if (['contratista', 'tecnico', 'admin', 'aperturador', 'incorporador'].includes(role)) {
       const filtroCot = {
         estado: 'aceptada',
         $or: [{ 'anticipo.verificado': true }, { 'pagoUnico.verificado': true }]
@@ -102,6 +105,15 @@ export async function GET(request) {
       if (role === 'tecnico') {
         const ids = await Cita.find({ tecnico: tecnicoId }).distinct('_id');
         filtroCot.cita = { $in: ids };
+      }
+      if (role === 'aperturador') {
+        // servicios en las zonas del aperturador
+        const zonas = await Area.find({ aperturador: { $in: idsPerfilYUsuario } }).distinct('_id');
+        filtroCot.cita = { $in: await Cita.find({ 'ubicacion.zona': { $in: zonas } }).distinct('_id') };
+      }
+      if (role === 'incorporador') {
+        // servicios de los contratistas que incorporó
+        filtroCot.contratista = { $in: await Contratista.find({ incorporador: { $in: idsPerfilYUsuario } }).distinct('_id') };
       }
       const cotizaciones = await Cotizacion.find(filtroCot);
       const conComision = new Set(
@@ -119,6 +131,8 @@ export async function GET(request) {
         if (!g) continue;
         pendiente += role === 'contratista' ? g.gananciaContratista
           : role === 'tecnico' ? g.gananciaTecnico
+          : role === 'aperturador' ? g.comisionAperturador
+          : role === 'incorporador' ? g.comisionIncorporador
           : g.comisionPlataforma;
       }
     }
@@ -147,6 +161,16 @@ export async function GET(request) {
         gananciaNeta: ganado
       };
     }
+
+    // Nombres de la zona y del contratista de cada servicio (útiles para el aperturador y el incorporador)
+    const zonaIds = [...new Set(comisiones.map(c => c.cita?.ubicacion?.zona).filter(Boolean).map(String))];
+    const contratistaIds = [...new Set(comisiones.map(c => c.distribucion?.contratista?.id).filter(Boolean).map(String))];
+    const [zonasDocs, contratistasDocs] = await Promise.all([
+      Area.find({ _id: { $in: zonaIds } }).select('nombre').lean(),
+      Contratista.find({ _id: { $in: contratistaIds } }).select('nombre').lean()
+    ]);
+    const nombreZona = Object.fromEntries(zonasDocs.map(z => [String(z._id), z.nombre]));
+    const nombreContratista = Object.fromEntries(contratistasDocs.map(c => [String(c._id), c.nombre]));
 
     return NextResponse.json({
       success: true,
@@ -178,6 +202,8 @@ export async function GET(request) {
         manoDeObra: com.manoDeObra,
         materiales: com.costoMateriales,
         comisionPlataforma: com.distribucion?.plataforma?.monto || 0,
+        zona: nombreZona[String(com.cita?.ubicacion?.zona)] || null,
+        contratista: nombreContratista[String(com.distribucion?.contratista?.id)] || null,
         gananciaTecnico: com.distribucion?.tecnico?.monto || 0,
         estadoLiberacion: com.liberacionTecnico?.estado || 'pendiente',
         estado: com.cita?.estado || 'completada'

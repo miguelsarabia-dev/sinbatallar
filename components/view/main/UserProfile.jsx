@@ -814,7 +814,7 @@ export default function UserProfile() {
       {/* Modal cambiar contraseña */}
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h3 className="text-xl font-bold text-gray-900 mb-6 text-center">Cambiar contraseña</h3>
 
