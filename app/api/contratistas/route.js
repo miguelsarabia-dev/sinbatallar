@@ -1,3 +1,4 @@
+import { errorPasswordAlta, passwordEsDatoPersonal } from '@/lib/password-alta';
 import { connectDB } from '@/lib/mongoose'
 import Contratista from '@/models/Contratista'
 import Incorporador from '@/models/Incorporador'
@@ -69,14 +70,15 @@ export async function GET(request) {
 }
 
 // POST /api/contratistas — el incorporador registra un contratista
-// Body JSON: { nombre, email, telefono, curp, incorporadorId, especialidad?, direccion?, notas? }
+// Body JSON: { nombre, email, telefono, curp, password, incorporadorId, especialidad?, direccion?, notas? }
+// `password` es la contraseña temporal que el incorporador le entrega al contratista (obligatoria, mín. 6).
 export async function POST(req) {
   await connectDB();
 
   // Auto-registro público permitido, pero sin privilegios: solo admin/incorporador lo dejan activo.
   const session = await getSessionFromRequest(req);
   const body = await req.json();
-  const { nombre, email, telefono, curp, especialidad, direccion, notas, incorporadorId } = body;
+  const { nombre, email, telefono, curp, password, especialidad, direccion, notas, incorporadorId } = body;
   for (const v of [nombre, email, telefono, curp, especialidad, direccion, notas, incorporadorId]) {
     if (v !== undefined && typeof v !== 'string') {
       return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
@@ -97,6 +99,15 @@ export async function POST(req) {
     return NextResponse.json({ error: 'El CURP debe tener 18 caracteres' }, { status: 400 });
   }
 
+  // La contraseña la define quien da de alta (no se deriva del CURP): el contratista debe poder entrar con ella.
+  const errorPassword = errorPasswordAlta(password);
+  if (errorPassword) {
+    return NextResponse.json({ error: errorPassword }, { status: 400 });
+  }
+  if (passwordEsDatoPersonal(password, { curp, telefono, email })) {
+    return NextResponse.json({ error: 'La contraseña no puede ser igual al CURP, teléfono o correo' }, { status: 400 });
+  }
+
   const incorporador = await Incorporador.findById(incorporadorId);
   if (!incorporador) {
     return NextResponse.json({ error: 'Incorporador no encontrado' }, { status: 404 });
@@ -110,8 +121,8 @@ export async function POST(req) {
   const propioIncorporador = session?.role === 'incorporador' && String(await incorporadorDe(session)) === String(incorporador._id);
   const autorizadoActivar = session?.role === 'admin' || propioIncorporador;
 
-  // Password temporal generado del CURP — el contratista lo cambia en su primer login
-  const passwordTemporal = await bcrypt.hash(curp.trim().toUpperCase(), 12);
+  // Contraseña temporal que dio el incorporador/admin (nunca derivada del CURP)
+  const passwordTemporal = await bcrypt.hash(password, 12);
 
   const nuevoContratista = await Contratista.create({
     nombre: nombre.trim(),
