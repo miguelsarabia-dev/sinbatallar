@@ -5,6 +5,7 @@ import Contratista from '@/models/Contratista';
 import Cita from '@/models/Cita';
 import { requireSession } from '@/lib/session';
 import { esObjectId } from '@/lib/sanitize';
+import { getCuentaEmpresa } from '@/lib/cuenta-empresa';
 
 // GET - Obtener información de pago del contratista
 export async function GET(request, { params }) {
@@ -24,25 +25,11 @@ export async function GET(request, { params }) {
       if (!relacionado) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
-    const contratista = await Contratista.findById(id)
-      .select('informacionPago nombre email');
-
-    if (!contratista) {
+    // Todos los pagos entran a Sin Batallar: se devuelve la cuenta de la empresa (el contratista ya no tiene datos de depósito)
+    if (!(await Contratista.exists({ _id: id }))) {
       return NextResponse.json({ error: 'Contratista no encontrado' }, { status: 404 });
     }
-
-    // Verificar que el usuario autenticado sea el contratista
-
-
-    return NextResponse.json({
-      informacionPago: contratista.informacionPago || {
-        banco: '',
-        numeroCuenta: '',
-        clabe: '',
-        nombreTitular: '',
-        actualizado: null
-      }
-    });
+    return NextResponse.json({ informacionPago: await getCuentaEmpresa() });
 
   } catch (error) {
     console.error('Error al obtener información de pago:', error);
@@ -52,77 +39,13 @@ export async function GET(request, { params }) {
   }
 }
 
-// PUT - Actualizar información de pago del contratista
-export async function PUT(request, { params }) {
-  try {
-    await connectDB();
-
-    const { session, error } = await requireSession(request, ['contratista', 'admin']);
-    if (error) return error;
-
-    const { id } = await params;
-    if (!esObjectId(id) || (session.role === 'contratista' && session.id !== id)) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-    }
-    const { banco, numeroCuenta, clabe, nombreTitular } = await request.json();
-    for (const v of [banco, numeroCuenta, clabe, nombreTitular]) {
-      if (typeof v !== 'string') return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
-    }
-
-    // Validaciones básicas
-    if (!banco?.trim() || !numeroCuenta?.trim() || !clabe?.trim() || !nombreTitular?.trim()) {
-      return NextResponse.json({
-        error: 'Todos los campos son obligatorios'
-      }, { status: 400 });
-    }
-
-    // Validar formato de CLABE (18 dígitos)
-    if (!/^\d{18}$/.test(clabe.trim())) {
-      return NextResponse.json({
-        error: 'La CLABE debe tener 18 dígitos numéricos'
-      }, { status: 400 });
-    }
-
-    // Validar que el número de cuenta sea numérico
-    if (!/^\d+$/.test(numeroCuenta.trim())) {
-      return NextResponse.json({
-        error: 'El número de cuenta debe ser numérico'
-      }, { status: 400 });
-    }
-
-    const contratista = await Contratista.findById(id);
-
-    if (!contratista) {
-      return NextResponse.json({ error: 'Contratista no encontrado' }, { status: 404 });
-    }
-
-    // Verificar que el usuario autenticado sea el contratista
-
-
-    // Actualizar información de pago
-    const contratistaActualizado = await Contratista.findByIdAndUpdate(
-      id,
-      {
-        informacionPago: {
-          banco: banco.trim(),
-          numeroCuenta: numeroCuenta.trim(),
-          clabe: clabe.trim(),
-          nombreTitular: nombreTitular.trim(),
-          actualizado: new Date()
-        }
-      },
-      { new: true, select: 'informacionPago nombre email' }
-    );
-
-    return NextResponse.json({
-      message: 'Información de pago actualizada exitosamente',
-      informacionPago: contratistaActualizado.informacionPago
-    });
-
-  } catch (error) {
-    console.error('Error al actualizar información de pago:', error);
-    return NextResponse.json({
-      error: 'Error interno del servidor'
-    }, { status: 500 });
-  }
+// PUT - Ya no existe: los contratistas no capturan datos de depósito, todo el dinero entra a Sin Batallar
+export async function PUT(request) {
+  await connectDB();
+  const { error } = await requireSession(request, ['contratista', 'admin']);
+  if (error) return error;
+  return NextResponse.json(
+    { error: 'Los pagos los recibe Sin Batallar; el contratista no captura datos de depósito' },
+    { status: 410 }
+  );
 }

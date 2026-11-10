@@ -71,21 +71,21 @@ export async function GET(request) {
 
     const citas = await Cita.find(filter)
       .populate('cliente', 'nombre email telefono')
-      .populate('contratista', 'nombre email telefono promedioCalificacion informacionPago')
+      .populate('contratista', 'nombre email telefono promedioCalificacion')
       .populate('servicio', 'nombre descripcion categoria')
       .populate({
         path: 'cotizaciones',
         match: clienteId ? { estado: { $nin: ['pendiente', 'pendiente_contratista', 'rechazada_contratista'] } } : {},
         populate: {
           path: 'contratista',
-          select: 'nombre email telefono informacionPago'
+          select: 'nombre email telefono'
         }
       })
       .populate({
         path: 'cotizacionAceptada',
         populate: {
           path: 'contratista',
-          select: 'nombre email telefono informacionPago'
+          select: 'nombre email telefono'
         }
       })
       .populate({ path: 'tecnico', populate: { path: 'user', select: 'nombre email telefono' } })

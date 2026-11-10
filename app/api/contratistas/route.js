@@ -9,7 +9,7 @@ import { requireSession, getSessionFromRequest } from '@/lib/session'
 import { esObjectId, pick, soloTexto } from '@/lib/sanitize'
 import { relacionCon, camposPara, incorporadorDe, aplicarReglasAprobacion, SELECT_PUBLICO } from '@/lib/contratista-acceso'
 import { permisoCambioZona } from '@/lib/datos-incorporacion'
-import { validarZona } from '@/lib/zona-contratista'
+import { validarZonas, zonasDeBody, zonasDe, sincronizarAreas } from '@/lib/zona-contratista'
 
 // GET: Listar todos los contratistas o uno por ID
 // Query: ?id=  ?incorporadorId=  ?sinIncorporador=true  ?estatus=pendiente|activo|rechazado|suspendido
@@ -121,6 +121,16 @@ export async function POST(req) {
   const propioIncorporador = session?.role === 'incorporador' && String(await incorporadorDe(session)) === String(incorporador._id);
   const autorizadoActivar = session?.role === 'admin' || propioIncorporador;
 
+  // Zonas (máx. 5): solo las puede asignar el admin o el incorporador dueño; un auto-registro no trae zonas
+  let zonasAlta = { areasIds: [], areaId: null };
+  const zonasPedidasAlta = zonasDeBody(body);
+  if (zonasPedidasAlta !== undefined) {
+    if (!autorizadoActivar) return NextResponse.json({ error: 'La zona la asigna tu incorporador' }, { status: 403 });
+    const zonas = await validarZonas(zonasPedidasAlta);
+    if (!zonas.ok) return NextResponse.json({ error: zonas.error }, { status: zonas.status });
+    zonasAlta = zonas;
+  }
+
   // Contraseña temporal que dio el incorporador/admin (nunca derivada del CURP)
   const passwordTemporal = await bcrypt.hash(password, 12);
 
@@ -134,6 +144,8 @@ export async function POST(req) {
     notas: notas?.trim() || '',
     password: passwordTemporal,
     incorporador: incorporador._id,
+    areasIds: zonasAlta.areasIds,
+    areaId: zonasAlta.areaId,
     // Aprobación: solo la da un admin (alta directa). Si lo crea el incorporador queda en revisión hasta aprobarlo.
     aprobado: session?.role === 'admin',
     activo: session?.role === 'admin',
@@ -142,6 +154,8 @@ export async function POST(req) {
 
   enviarEmailBienvenidaContratista({ email: nuevoContratista.email, nombre: nuevoContratista.nombre })
     .catch(err => console.error('Error enviando email bienvenida contratista:', err));
+
+  if (zonasAlta.areasIds.length) await sincronizarAreas(nuevoContratista._id, [], zonasAlta.areasIds);
 
   incorporador.contratistasIncorporados.push(nuevoContratista._id);
   incorporador.estadisticas.totalContratistasIncorporados = incorporador.contratistasIncorporados.length;
@@ -181,14 +195,18 @@ export async function PUT(req) {
     const relacion = await relacionCon(session, contratistaActual);
     if (!relacion) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     // La zona la asigna el incorporador (o el admin): si el contratista la manda, 403 explícito, no se ignora
-    const permisoZona = permisoCambioZona(relacion, body.areaId);
+    const permisoZona = permisoCambioZona(relacion, zonasDeBody(body));
     if (!permisoZona.ok) return NextResponse.json({ error: permisoZona.error }, { status: permisoZona.status });
 
     let data = pick(body, camposPara(relacion));
-    if (data.areaId !== undefined) {
-      const zona = await validarZona(data.areaId);
-      if (!zona.ok) return NextResponse.json({ error: zona.error }, { status: zona.status });
-      data.areaId = zona.areaId;
+    delete data.areaId;
+    delete data.areasIds;
+    const zonasPedidas = zonasDeBody(body);
+    if (zonasPedidas !== undefined) {
+      const zonas = await validarZonas(zonasPedidas);
+      if (!zonas.ok) return NextResponse.json({ error: zonas.error }, { status: zonas.status });
+      data.areasIds = zonas.areasIds;
+      data.areaId = zonas.areaId;
     }
     const reglas = aplicarReglasAprobacion(relacion, contratistaActual, data);
     if (reglas.error) return NextResponse.json({ error: reglas.error.message, ...(reglas.error.faltantes ? { faltantes: reglas.error.faltantes } : {}) }, { status: reglas.error.status });
@@ -205,6 +223,9 @@ export async function PUT(req) {
 
     const { _id: _omit, ...cambios } = data;
     const contratista = await Contratista.findByIdAndUpdate(data._id, cambios, { new: true, runValidators: true });
+    if (data.areasIds !== undefined) {
+      await sincronizarAreas(data._id, zonasDe(contratistaActual), data.areasIds);
+    }
 
     // Si cambió el incorporador, actualizar estadísticas
     if (data.incorporador !== undefined && data.incorporador !== contratistaActual.incorporador?.toString()) {

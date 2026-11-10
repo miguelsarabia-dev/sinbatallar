@@ -255,7 +255,8 @@ function Configuracion() {
     if (!form) return <Estado loading={!error} error={error} />;
 
     const campos = [
-        ['CONTRACTOR', 'Contratista (% de mano de obra)'],
+        ['CONTRACTOR', 'Contratista bruto (% de mano de obra, incluye al técnico)'],
+        ['TECHNICIAN', 'Técnico (% fijo de mano de obra, sale del contratista)'],
         ['PLATFORM_BASE', 'Plataforma base (% de mano de obra)'],
         ['OPENER', 'Aperturador (se resta a la plataforma)'],
         ['INCORPORATOR', 'Incorporador (se resta a la plataforma)']

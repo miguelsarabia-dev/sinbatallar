@@ -27,7 +27,7 @@ export async function GET(request, { params }) {
     }
 
     const cotizacion = await Cotizacion.findById(id)
-      .populate('contratista', 'nombre email telefono promedioCalificacion informacionPago')
+      .populate('contratista', 'nombre email telefono promedioCalificacion')
       .populate({
         path: 'cita',
         populate: [

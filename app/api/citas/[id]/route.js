@@ -23,7 +23,7 @@ export async function GET(request, { params }) {
 
     const cita = await Cita.findById(id)
       .populate('cliente', 'nombre email telefono')
-      .populate('contratista', 'nombre email telefono calificacion informacionPago')
+      .populate('contratista', 'nombre email telefono calificacion')
       .populate('servicio', 'nombre descripcion categoria precio')
       .populate('cotizaciones')
       .populate('cotizacionAceptada');

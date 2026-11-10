@@ -1,4 +1,5 @@
 // app/api/tecnicos/route.js
+import { zonasDe } from '@/lib/zona-contratista';
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Tecnico from '@/models/Tecnico';
@@ -41,14 +42,14 @@ export async function GET(request) {
     const conZonaVacia = await Tecnico.find({
       ...filtroBase,
       $or: [{ areasCobertura: { $exists: false } }, { areasCobertura: { $size: 0 } }]
-    }).populate('contratista', 'areaId');
+    }).populate('contratista', 'areaId areasIds');
 
     for (const t of conZonaVacia) {
-      const zonaContratista = t.contratista?.areaId;
-      if (zonaContratista) {
+      const zonasContratista = zonasDe(t.contratista);
+      if (zonasContratista.length) {
         await Tecnico.updateOne(
           { _id: t._id },
-          { $set: { areasCobertura: [zonaContratista] } }
+          { $set: { areasCobertura: zonasContratista } }
         );
       }
     }
@@ -139,8 +140,8 @@ export async function POST(request) {
     // Herencia de zonas: si el body no trae areasCobertura, el técnico hereda por
     // defecto la zona de su contratista. Si viene explícito, se respeta (override manual).
     let areasFinales = Array.isArray(areasCobertura) ? areasCobertura : [];
-    if (areasFinales.length === 0 && contratista.areaId) {
-      areasFinales = [contratista.areaId];
+    if (areasFinales.length === 0 && zonasDe(contratista).length) {
+      areasFinales = zonasDe(contratista);
     }
 
     const tecnico = await Tecnico.create({

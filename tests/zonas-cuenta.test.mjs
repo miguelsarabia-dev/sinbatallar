@@ -1,0 +1,42 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { zonasDeBody, zonasDe, MAX_ZONAS } from '../lib/zonas-puras.js';
+import { permisoCambioZona, datosIncorporacion } from '../lib/datos-incorporacion.js';
+import { errorCuentaEmpresa, cuentaDesdeEnv } from '../lib/cuenta-empresa-datos.js';
+
+test('zonasDeBody acepta lista, areaId heredado o nada', () => {
+  assert.deepEqual(zonasDeBody({ areasIds: ['a', 'b'] }), ['a', 'b']);
+  assert.deepEqual(zonasDeBody({ areaId: 'a' }), ['a']);
+  assert.deepEqual(zonasDeBody({ areaId: null }), []);
+  assert.equal(zonasDeBody({ nombre: 'x' }), undefined);
+  assert.equal(MAX_ZONAS, 5);
+});
+
+test('zonasDe lee areasIds y cae a areaId en cuentas antiguas', () => {
+  assert.deepEqual(zonasDe({ areasIds: ['a', 'b'], areaId: 'a' }), ['a', 'b']);
+  assert.deepEqual(zonasDe({ areaId: 'z' }), ['z']);
+  assert.deepEqual(zonasDe({}), []);
+});
+
+test('solo admin/incorporador cambian zonas; el contratista recibe 403', () => {
+  assert.equal(permisoCambioZona('incorporador', ['a']).ok, true);
+  assert.equal(permisoCambioZona('admin', []).ok, true);
+  assert.equal(permisoCambioZona('self', ['a']).status, 403);
+  assert.equal(permisoCambioZona('self', undefined).ok, true);
+});
+
+test('la zona requerida se cumple con areasIds y una lista vacía cuenta como faltante', () => {
+  const base = { nombre: 'n', email: 'e', telefono: 't', curp: 'c', direccion: 'd', especialidad: 'x' };
+  assert.ok(datosIncorporacion({ ...base, areasIds: ['a'] }).presentes.includes('zona'));
+  assert.ok(datosIncorporacion({ ...base, areasIds: [] }).faltantes.includes('zona'));
+  assert.ok(datosIncorporacion({ ...base, areaId: 'a' }).presentes.includes('zona'));
+});
+
+test('cuenta de la empresa: CLABE de 18 dígitos y datos obligatorios', () => {
+  const ok = { banco: 'BBVA', numeroCuenta: '123', clabe: '012345678901234567', nombreTitular: 'Sin Batallar' };
+  assert.equal(errorCuentaEmpresa(ok), null);
+  assert.ok(errorCuentaEmpresa({ ...ok, clabe: '123' }));
+  assert.ok(errorCuentaEmpresa({ ...ok, banco: ' ' }));
+  assert.ok(errorCuentaEmpresa({ ...ok, numeroCuenta: 'abc' }));
+  assert.equal(cuentaDesdeEnv({ EMPRESA_CLABE: '1' }).clabe, '1');
+});

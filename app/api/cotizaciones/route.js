@@ -48,7 +48,7 @@ export async function GET(request) {
     }
 
     const cotizaciones = await Cotizacion.find(filter)
-      .populate('contratista', 'nombre email telefono promedioCalificacion informacionPago')
+      .populate('contratista', 'nombre email telefono promedioCalificacion')
       .populate({ path: 'tecnico', populate: { path: 'user', select: 'nombre email' } })
       .populate({
         path: 'cita',

@@ -62,15 +62,9 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'No tienes permiso para editar este técnico' }, { status: 403 });
     }
 
+    // El % del técnico es fijo para todos (config financiera, 5%): ya no lo fija el contratista
     if (body.porcentajeGanancia !== undefined) {
-      if (!esDueno) {
-        return NextResponse.json({ error: 'Solo el contratista dueño puede definir el porcentaje de ganancia' }, { status: 403 });
-      }
-      const porcentaje = Number(body.porcentajeGanancia);
-      if (!Number.isFinite(porcentaje) || porcentaje < 0 || porcentaje > 100) {
-        return NextResponse.json({ error: 'porcentajeGanancia debe ser un número entre 0 y 100' }, { status: 400 });
-      }
-      tecnico.porcentajeGanancia = porcentaje;
+      return NextResponse.json({ error: 'El porcentaje del técnico es fijo y lo define Sin Batallar' }, { status: 400 });
     }
 
     // Actualizar campos del perfil User

@@ -21,10 +21,17 @@ const contratistaSchema = new mongoose.Schema({
     lng: { type: Number },
     direccion: { type: String, trim: true }
   },
+  // Zona principal (la primera de areasIds). Cuentas antiguas solo tienen esta.
   areaId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Area',
     default: null
+  },
+  // Zonas asignadas por el incorporador/admin (máx. 5). El contratista solo las ve.
+  areasIds: {
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Area' }],
+    default: [],
+    validate: { validator: (v) => v.length <= 5, message: 'Un contratista puede tener máximo 5 zonas' }
   },
   // aprobado: la cuenta fue validada (admin o su incorporador). Hasta entonces no recibe solicitudes.
   aprobado: { type: Boolean, default: false },
