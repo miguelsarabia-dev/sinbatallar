@@ -25,7 +25,6 @@ import Modal from '../../ui/Modal';
 
 import CotizacionesContratista from './CotizacionesContratista';
 import GananciasWidget from '../../features/finance/GananciasWidget';
-import GestionPagos from './GestionPagos';
 import GestionCitas from '../shared/GestionCitas';
 
 const ContratistaDashboard = () => {
@@ -205,7 +204,13 @@ const ContratistaDashboard = () => {
             )}
 
             {activeTab === 'pagos' && (
-              <GestionPagos contratistaId={contratistaData?._id} />
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Pagos</h3>
+                <p className="text-gray-600">
+                  Los clientes pagan directamente a Sin Batallar y la empresa te reparte tu parte; por eso ya no
+                  necesitas capturar datos de depósito. Consulta tus ganancias en la pestaña de ganancias.
+                </p>
+              </div>
             )}
           </div>
 

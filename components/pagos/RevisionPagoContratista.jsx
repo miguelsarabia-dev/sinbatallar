@@ -1,5 +1,5 @@
 'use client';
-// El contratista ve la imagen del comprobante y verifica o rechaza (con motivo) el pago declarado por el cliente.
+// El admin de Sin Batallar ve la imagen del comprobante y verifica o rechaza (con motivo) el pago declarado por el cliente.
 import { useState, useEffect, useCallback } from 'react';
 import { FaCheckCircle, FaTimesCircle, FaImage } from 'react-icons/fa';
 import { peso, ETIQUETA_TIPO } from './SubirComprobante';
@@ -56,9 +56,9 @@ export default function RevisionPagoContratista({ cita, onChanged, showError, sh
                     <span className="inline-flex items-center gap-1 text-primary underline mt-1"><FaImage /> Ver imagen completa</span>
                 </a>
             ) : (
-                <p className="text-gray-600">No hay imagen de comprobante (pago declarado antes del nuevo flujo). Verifica contra tu banco.</p>
+                <p className="text-gray-600">No hay imagen de comprobante (pago declarado antes del nuevo flujo). Verifica contra el banco de la empresa.</p>
             )}
-            <p className="text-gray-700">Confirma en tu banco que recibiste el monto antes de verificar.</p>
+            <p className="text-gray-700">Confirma en el banco de la empresa que recibió el monto antes de verificar.</p>
             <div className="flex gap-2">
                 <button onClick={() => resolver(true)} disabled={!!ocupado} className="flex-1 bg-green-600 text-white rounded-lg py-2 font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
                     <FaCheckCircle /> {ocupado === 'ok' ? 'Verificando...' : 'Verificar pago'}

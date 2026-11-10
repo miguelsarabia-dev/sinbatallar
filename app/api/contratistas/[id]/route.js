@@ -7,7 +7,7 @@ import { requireSession } from '@/lib/session'
 import { esObjectId, pick } from '@/lib/sanitize'
 import { relacionCon, camposPara, aplicarReglasAprobacion, SELECT_PUBLICO } from '@/lib/contratista-acceso'
 import { permisoCambioZona } from '@/lib/datos-incorporacion'
-import { validarZona } from '@/lib/zona-contratista'
+import { validarZonas, zonasDeBody, zonasDe, sincronizarAreas } from '@/lib/zona-contratista'
 
 // GET: Obtener un contratista específico por ID
 export async function GET(request, { params }) {
@@ -58,14 +58,18 @@ export async function PUT(request, { params }) {
     const body = await request.json();
 
     // La zona la asigna el incorporador (o el admin): si el contratista la manda, 403 explícito, no se ignora
-    const permisoZona = permisoCambioZona(relacion, body.areaId);
+    const permisoZona = permisoCambioZona(relacion, zonasDeBody(body));
     if (!permisoZona.ok) return NextResponse.json({ error: permisoZona.error }, { status: permisoZona.status });
 
     let data = pick(body, camposPara(relacion));
-    if (data.areaId !== undefined) {
-      const zona = await validarZona(data.areaId);
-      if (!zona.ok) return NextResponse.json({ error: zona.error }, { status: zona.status });
-      data.areaId = zona.areaId;
+    delete data.areaId;
+    delete data.areasIds;
+    const zonasPedidas = zonasDeBody(body);
+    if (zonasPedidas !== undefined) {
+      const zonas = await validarZonas(zonasPedidas);
+      if (!zonas.ok) return NextResponse.json({ error: zonas.error }, { status: zonas.status });
+      data.areasIds = zonas.areasIds;
+      data.areaId = zonas.areaId;
     }
     const reglas = aplicarReglasAprobacion(relacion, contratistaActual, data);
     if (reglas.error) {
@@ -88,24 +92,9 @@ export async function PUT(request, { params }) {
       data.password = await bcrypt.hash(data.password, 12);
     }
 
-    // Manejar cambio de área: actualizar el array contratistas en Area
-    if (data.areaId !== undefined) {
-      const areaAnteriorId = contratistaActual.areaId?.toString();
-      const areaNuevaId = data.areaId?.toString();
-
-      // Quitar de área anterior si cambió
-      if (areaAnteriorId && areaAnteriorId !== areaNuevaId) {
-        await Area.findByIdAndUpdate(areaAnteriorId, {
-          $pull: { contratistas: id }
-        });
-      }
-
-      // Agregar a nueva área si hay una y es distinta
-      if (areaNuevaId && areaNuevaId !== areaAnteriorId) {
-        await Area.findByIdAndUpdate(areaNuevaId, {
-          $addToSet: { contratistas: id }
-        });
-      }
+    // Cambio de zonas: mantener el array contratistas de cada Area
+    if (data.areasIds !== undefined) {
+      await sincronizarAreas(id, zonasDe(contratistaActual), data.areasIds);
     }
 
     // Actualizar el contratista

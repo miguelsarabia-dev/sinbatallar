@@ -1,4 +1,5 @@
 // app/api/tecnicos/route.js
+import { zonasDe } from '@/lib/zona-contratista';
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Tecnico from '@/models/Tecnico';
@@ -12,7 +13,8 @@ import { esObjectId, pick } from '@/lib/sanitize';
 
 // GET /api/tecnicos?contratistaId=xxx
 // GET /api/tecnicos?userId=xxx
-// GET /api/tecnicos?contratistaId=xxx&areaId=yyy → solo técnicos que cubren esa zona
+// GET /api/tecnicos?contratistaId=xxx&areaId=yyy → el contratista recibe TODOS sus técnicos con `cubreZona`
+//   (true si cubren esa zona; primero los que sí). Admin: filtra por zona.
 export async function GET(request) {
   try {
     await connectDB();
@@ -41,21 +43,22 @@ export async function GET(request) {
     const conZonaVacia = await Tecnico.find({
       ...filtroBase,
       $or: [{ areasCobertura: { $exists: false } }, { areasCobertura: { $size: 0 } }]
-    }).populate('contratista', 'areaId');
+    }).populate('contratista', 'areaId areasIds');
 
     for (const t of conZonaVacia) {
-      const zonaContratista = t.contratista?.areaId;
-      if (zonaContratista) {
+      const zonasContratista = zonasDe(t.contratista);
+      if (zonasContratista.length) {
         await Tecnico.updateOne(
           { _id: t._id },
-          { $set: { areasCobertura: [zonaContratista] } }
+          { $set: { areasCobertura: zonasContratista } }
         );
       }
     }
 
     const filtro = { ...filtroBase };
-    // Filtrar por zona de cobertura solo si se proporciona areaId
-    if (areaId) filtro.areasCobertura = areaId;
+    // El contratista responde por sus técnicos: no se le ocultan por zona (antes, si la zona del técnico no
+    // coincidía con la de la cita, la lista salía vacía). Solo el admin filtra por zona.
+    if (areaId && session.role === 'admin') filtro.areasCobertura = areaId;
 
     const tecnicos = await Tecnico.find(filtro)
       .populate('user', 'nombre email telefono fotoUrl suspendido')
@@ -70,13 +73,16 @@ export async function GET(request) {
     ]);
     const activasPorTecnico = Object.fromEntries(activas.map(a => [String(a._id), a.total]));
 
-    return NextResponse.json(tecnicos.map(t => ({
+    const lista = tecnicos.map(t => ({
       ...t.toObject(),
+      cubreZona: !areaId || (t.areasCobertura || []).some(a => String(a?._id || a) === areaId),
       disponible: t.disponible !== false,
       citasActivas: activasPorTecnico[String(t._id)] || 0,
       promedioCalificacion: t.promedioCalificacion || 0,
       totalCalificaciones: t.totalCalificaciones || 0
-    })));
+    }));
+    lista.sort((a, b) => Number(b.cubreZona) - Number(a.cubreZona));
+    return NextResponse.json(lista);
   } catch (error) {
     console.error('Error en GET /api/tecnicos:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
@@ -139,8 +145,8 @@ export async function POST(request) {
     // Herencia de zonas: si el body no trae areasCobertura, el técnico hereda por
     // defecto la zona de su contratista. Si viene explícito, se respeta (override manual).
     let areasFinales = Array.isArray(areasCobertura) ? areasCobertura : [];
-    if (areasFinales.length === 0 && contratista.areaId) {
-      areasFinales = [contratista.areaId];
+    if (areasFinales.length === 0 && zonasDe(contratista).length) {
+      areasFinales = zonasDe(contratista);
     }
 
     const tecnico = await Tecnico.create({

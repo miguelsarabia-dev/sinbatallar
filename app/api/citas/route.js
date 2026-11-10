@@ -13,6 +13,7 @@ import { idSeguro } from '@/lib/sanitize';
 import Tecnico from '@/models/Tecnico';
 import { getSessionFromRequest, requireSession } from '@/lib/session';
 import { cambiarEstadoCita } from '@/lib/citas-estado';
+import { citasPorLiquidar } from '@/lib/liquidacion-db';
 import { getFinancialConfig, gananciaDeCita, resolverCotizacionAceptada } from '@/lib/comisiones';
 
 // GET - Obtener citas
@@ -71,21 +72,21 @@ export async function GET(request) {
 
     const citas = await Cita.find(filter)
       .populate('cliente', 'nombre email telefono')
-      .populate('contratista', 'nombre email telefono promedioCalificacion informacionPago')
+      .populate('contratista', 'nombre email telefono promedioCalificacion')
       .populate('servicio', 'nombre descripcion categoria')
       .populate({
         path: 'cotizaciones',
         match: clienteId ? { estado: { $nin: ['pendiente', 'pendiente_contratista', 'rechazada_contratista'] } } : {},
         populate: {
           path: 'contratista',
-          select: 'nombre email telefono informacionPago'
+          select: 'nombre email telefono'
         }
       })
       .populate({
         path: 'cotizacionAceptada',
         populate: {
           path: 'contratista',
-          select: 'nombre email telefono informacionPago'
+          select: 'nombre email telefono'
         }
       })
       .populate({ path: 'tecnico', populate: { path: 'user', select: 'nombre email telefono' } })
@@ -171,6 +172,15 @@ export async function POST(request) {
 
     const { session, error } = await requireSession(request, ['cliente']);
     if (error) return error;
+
+    // Forzar la liquidación: con un servicio terminado por el técnico sin liquidar no se pide otro
+    const porLiquidar = await citasPorLiquidar(session.id);
+    if (porLiquidar.length) {
+      return NextResponse.json(
+        { error: 'Tienes un servicio terminado pendiente de liquidar. Liquídalo para poder solicitar otro.', code: 'LIQUIDACION_PENDIENTE', citaIds: porLiquidar },
+        { status: 409 }
+      );
+    }
 
     const formData = await request.formData();
     const clienteId = session.id; // del token; el campo del body se ignora
