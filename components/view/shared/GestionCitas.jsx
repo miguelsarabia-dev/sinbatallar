@@ -777,8 +777,11 @@ export default function GestionCitas({
                   </button>
                 )}
 
-                {role === 'contratista' && (
+                {role === 'admin' && (
                   <RevisionPagoContratista cita={cita} onChanged={fetchCitas} showError={onError} showSuccess={onSuccess} />
+                )}
+                {role === 'contratista' && (cita.cotizacionAceptada?.anticipo?.declarado || cita.cotizacionAceptada?.pagoUnico?.declarado || cita.cotizacionAceptada?.saldo?.declarado) && (
+                  <p className="text-sm text-gray-600 mt-3">Sin Batallar verifica los pagos del cliente; te avisamos cuando estén confirmados.</p>
                 )}
 
                 {puedeCompletar && (

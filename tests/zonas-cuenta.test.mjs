@@ -40,3 +40,15 @@ test('cuenta de la empresa: CLABE de 18 dígitos y datos obligatorios', () => {
   assert.ok(errorCuentaEmpresa({ ...ok, numeroCuenta: 'abc' }));
   assert.equal(cuentaDesdeEnv({ EMPRESA_CLABE: '1' }).clabe, '1');
 });
+
+import { pendienteDeLiquidar } from '../lib/liquidacion.js';
+test('pendiente de liquidar: técnico terminó y el cliente no ha declarado el saldo / confirmado', () => {
+  const cita = { estado: 'completada', tecnicoMarcoCompletado: true, pagado: false, clienteConfirmo: false };
+  assert.equal(pendienteDeLiquidar(cita, { modalidadPago: 'anticipo', saldo: {} }), true);
+  assert.equal(pendienteDeLiquidar(cita, { modalidadPago: 'anticipo', saldo: { declarado: true } }), false);
+  assert.equal(pendienteDeLiquidar(cita, { modalidadPago: 'total', pagoUnico: { verificado: true } }), true);
+  assert.equal(pendienteDeLiquidar({ ...cita, clienteConfirmo: true }, { modalidadPago: 'total' }), false);
+  assert.equal(pendienteDeLiquidar({ ...cita, pagado: true }, { modalidadPago: 'anticipo', saldo: {} }), false);
+  assert.equal(pendienteDeLiquidar({ ...cita, tecnicoMarcoCompletado: false }, { modalidadPago: 'anticipo', saldo: {} }), false);
+  assert.equal(pendienteDeLiquidar(cita, null), false);
+});

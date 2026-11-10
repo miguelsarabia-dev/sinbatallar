@@ -1,6 +1,6 @@
 // app/api/cotizaciones/[id]/verificar-pago/route.js
-// El contratista dueño (o un admin), identificado por token, verifica o rechaza el pago
-// declarado por el cliente: tipo 'anticipo' | 'saldo' | 'total'.
+// SOLO un admin verifica o rechaza el pago declarado por el cliente (todo el dinero entra a Sin Batallar,
+// el contratista no lo recibe, así que no puede confirmarlo): tipo 'anticipo' | 'saldo' | 'total'.
 //  - anticipo / total verificados: la cita pasa a en_progreso en la misma operación.
 //  - saldo verificado: se cierra el servicio (completada, pagado) y se crea la comisión.
 //  - total verificado: el cierre y la comisión ocurren cuando el cliente confirma el trabajo.
@@ -22,7 +22,7 @@ export async function PATCH(request, { params }) {
   try {
     await connectDB();
 
-    const { session, error } = await requireSession(request, ['contratista', 'admin']);
+    const { session, error } = await requireSession(request, ['admin']);
     if (error) return error;
 
     const { id } = await params;
@@ -38,14 +38,6 @@ export async function PATCH(request, { params }) {
     const cotizacion = await Cotizacion.findById(id);
     if (!cotizacion) {
       return NextResponse.json({ error: 'Cotización no encontrada' }, { status: 404 });
-    }
-
-    // Solo el contratista dueño (según el token) o un admin.
-    if (session.role === 'contratista' && cotizacion.contratista.toString() !== session.id) {
-      return NextResponse.json(
-        { error: 'No tienes permiso para verificar el pago de esta cotización' },
-        { status: 403 }
-      );
     }
 
     const esTotal = cotizacion.modalidadPago === 'total';
@@ -124,8 +116,8 @@ export async function PATCH(request, { params }) {
       cita.historial.push({
         estado: 'en_progreso',
         comentario: tipo === 'total'
-          ? 'Pago total verificado por el contratista. Servicio en progreso.'
-          : 'Anticipo verificado por el contratista. Servicio en progreso.',
+          ? 'Pago total verificado por Sin Batallar. Servicio en progreso.'
+          : 'Anticipo verificado por Sin Batallar. Servicio en progreso.',
         fecha: new Date()
       });
       await cita.save({ validateModifiedOnly: true });

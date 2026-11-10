@@ -13,7 +13,8 @@ import { esObjectId, pick } from '@/lib/sanitize';
 
 // GET /api/tecnicos?contratistaId=xxx
 // GET /api/tecnicos?userId=xxx
-// GET /api/tecnicos?contratistaId=xxx&areaId=yyy → solo técnicos que cubren esa zona
+// GET /api/tecnicos?contratistaId=xxx&areaId=yyy → el contratista recibe TODOS sus técnicos con `cubreZona`
+//   (true si cubren esa zona; primero los que sí). Admin: filtra por zona.
 export async function GET(request) {
   try {
     await connectDB();
@@ -55,8 +56,9 @@ export async function GET(request) {
     }
 
     const filtro = { ...filtroBase };
-    // Filtrar por zona de cobertura solo si se proporciona areaId
-    if (areaId) filtro.areasCobertura = areaId;
+    // El contratista responde por sus técnicos: no se le ocultan por zona (antes, si la zona del técnico no
+    // coincidía con la de la cita, la lista salía vacía). Solo el admin filtra por zona.
+    if (areaId && session.role === 'admin') filtro.areasCobertura = areaId;
 
     const tecnicos = await Tecnico.find(filtro)
       .populate('user', 'nombre email telefono fotoUrl suspendido')
@@ -71,13 +73,16 @@ export async function GET(request) {
     ]);
     const activasPorTecnico = Object.fromEntries(activas.map(a => [String(a._id), a.total]));
 
-    return NextResponse.json(tecnicos.map(t => ({
+    const lista = tecnicos.map(t => ({
       ...t.toObject(),
+      cubreZona: !areaId || (t.areasCobertura || []).some(a => String(a?._id || a) === areaId),
       disponible: t.disponible !== false,
       citasActivas: activasPorTecnico[String(t._id)] || 0,
       promedioCalificacion: t.promedioCalificacion || 0,
       totalCalificaciones: t.totalCalificaciones || 0
-    })));
+    }));
+    lista.sort((a, b) => Number(b.cubreZona) - Number(a.cubreZona));
+    return NextResponse.json(lista);
   } catch (error) {
     console.error('Error en GET /api/tecnicos:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });

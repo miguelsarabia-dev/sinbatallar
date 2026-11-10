@@ -23,6 +23,11 @@ const comisionSchema = new mongoose.Schema({
             porcentaje: { type: Number, default: 10, min: 0, max: 100 },
             monto: { type: Number, default: 0, min: 0 }
         },
+        // Parte de la mano de obra que no se asignó a nadie (hoy 6%): no es de la plataforma
+        sinAsignar: {
+            porcentaje: { type: Number, default: 0, min: 0, max: 100 },
+            monto: { type: Number, default: 0, min: 0 }
+        },
         aperturador: {
             id: { type: mongoose.Schema.Types.ObjectId, ref: 'Aperturador' },
             porcentaje: { type: Number, default: 2, min: 0, max: 100 },

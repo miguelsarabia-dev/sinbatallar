@@ -257,9 +257,9 @@ function Configuracion() {
     const campos = [
         ['CONTRACTOR', 'Contratista bruto (% de mano de obra, incluye al técnico)'],
         ['TECHNICIAN', 'Técnico (% fijo de mano de obra, sale del contratista)'],
-        ['PLATFORM_BASE', 'Plataforma base (% de mano de obra)'],
-        ['OPENER', 'Aperturador (se resta a la plataforma)'],
-        ['INCORPORATOR', 'Incorporador (se resta a la plataforma)']
+        ['PLATFORM', 'Sin Batallar (% de mano de obra)'],
+        ['OPENER', 'Aperturador (% de mano de obra)'],
+        ['INCORPORATOR', 'Incorporador (% de mano de obra)']
     ];
 
     return (
