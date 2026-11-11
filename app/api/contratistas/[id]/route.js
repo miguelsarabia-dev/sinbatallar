@@ -6,7 +6,8 @@ import bcrypt from 'bcrypt'
 import { requireSession } from '@/lib/session'
 import { esObjectId, pick } from '@/lib/sanitize'
 import { relacionCon, camposPara, aplicarReglasAprobacion, SELECT_PUBLICO } from '@/lib/contratista-acceso'
-import { permisoCambioZona } from '@/lib/datos-incorporacion'
+import { permisoCambioZona, permisoCambioServicios } from '@/lib/datos-incorporacion'
+import { validarServicios } from '@/lib/servicios-contratista'
 import { validarZonas, zonasDeBody, zonasDe, sincronizarAreas } from '@/lib/zona-contratista'
 
 // GET: Obtener un contratista específico por ID
@@ -60,8 +61,16 @@ export async function PUT(request, { params }) {
     // La zona la asigna el incorporador (o el admin): si el contratista la manda, 403 explícito, no se ignora
     const permisoZona = permisoCambioZona(relacion, zonasDeBody(body));
     if (!permisoZona.ok) return NextResponse.json({ error: permisoZona.error }, { status: permisoZona.status });
+    const permisoServ = permisoCambioServicios(relacion, body.servicios);
+    if (!permisoServ.ok) return NextResponse.json({ error: permisoServ.error }, { status: permisoServ.status });
 
     let data = pick(body, camposPara(relacion));
+    if (data.servicios !== undefined) {
+      const serv = await validarServicios(data.servicios);
+      if (!serv.ok) return NextResponse.json({ error: serv.error }, { status: serv.status });
+      data.servicios = serv.servicios;
+      if (data.especialidad === undefined) data.especialidad = serv.nombres.join(', '); // la especialidad se deriva de los servicios
+    }
     delete data.areaId;
     delete data.areasIds;
     const zonasPedidas = zonasDeBody(body);
