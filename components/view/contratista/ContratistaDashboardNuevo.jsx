@@ -26,6 +26,7 @@ import Modal from '../../ui/Modal';
 import CotizacionesContratista from './CotizacionesContratista';
 import GananciasWidget from '../../features/finance/GananciasWidget';
 import GestionCitas from '../shared/GestionCitas';
+import MiEquipo from './MiEquipo';
 
 const ContratistaDashboard = () => {
   const { data: session, status } = useSession();
@@ -164,15 +165,15 @@ const ContratistaDashboard = () => {
                   <span className="sm:hidden">$</span>
                 </button>
                 <button
-                  onClick={() => setActiveTab('pagos')}
-                  className={`py-4 px-2 md:px-4 font-medium transition-all border-b-2 flex items-center justify-center gap-1 md:gap-2 ${activeTab === 'pagos'
+                  onClick={() => setActiveTab('equipo')}
+                  className={`py-4 px-2 md:px-4 font-medium transition-all border-b-2 flex items-center justify-center gap-1 md:gap-2 ${activeTab === 'equipo'
                     ? 'bg-white text-secondary border-primary'
                     : 'bg-neutral-light text-muted border-transparent hover:bg-white hover:text-secondary'
                     }`}
                 >
                   <FaServicestack className="flex-shrink-0" />
-                  <span className="hidden sm:inline">Pagos</span>
-                  <span className="sm:hidden">💳</span>
+                  <span className="hidden sm:inline">Mi equipo</span>
+                  <span className="sm:hidden">👷</span>
                 </button>
               </div>
             </div>
@@ -203,14 +204,8 @@ const ContratistaDashboard = () => {
               </div>
             )}
 
-            {activeTab === 'pagos' && (
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Pagos</h3>
-                <p className="text-gray-600">
-                  Los clientes pagan directamente a Sin Batallar y la empresa te reparte tu parte; por eso ya no
-                  necesitas capturar datos de depósito. Consulta tus ganancias en la pestaña de ganancias.
-                </p>
-              </div>
+            {activeTab === 'equipo' && (
+              <MiEquipo contratistaId={contratistaData?._id} servicios={contratistaData?.servicios || []} />
             )}
           </div>
 

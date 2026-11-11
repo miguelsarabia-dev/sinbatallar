@@ -30,7 +30,6 @@ const SOLO_TOKEN = new Set([
   'GET /api/ferreteros/ID',
   'GET /api/materiales/buscar',
   'GET /api/materiales/categorias',
-  'GET /api/ferreterias-por-zona',
   'GET /api/ferreteros/ID/catalogo',
   'GET /api/servicios-programables',
   'GET /api/servicios-por-zona',

@@ -63,3 +63,17 @@ test('los servicios los asigna el incorporador/admin, no el contratista', () => 
   assert.ok(CAMPOS_INCORPORADOR.includes('servicios') && CAMPOS_ADMIN.includes('servicios'));
   assert.ok(DATOS_REQUERIDOS.includes('servicios'));
 });
+
+import { ferreteriaPublica, materialPublico } from '../lib/ferreterias-publico.js';
+test('ferretería pública: sin correo, ids de usuario ni campos internos', () => {
+  const f = ferreteriaPublica(
+    { _id: 'f1', nombreNegocio: 'Ferre', telefono: '555', direccion: 'Calle', horario: '9-6', ubicacion: { type: 'Point', coordinates: [1, 2] }, pendienteAprobacion: false, createdAt: 'x', __v: 0 },
+    { _id: 'u1', nombre: 'Dueño', email: 'a@b.c', telefono: '555', fotoUrl: 'z' }
+  );
+  const txt = JSON.stringify(f);
+  assert.ok(!/a@b\.c|u1|fotoUrl|pendienteAprobacion|createdAt/.test(txt), txt);
+  assert.equal(f.nombreNegocio, 'Ferre');
+  const m = materialPublico({ _id: 'm1', nombre: 'Tubo', categoria: 'c', unidad: 'pieza', precio: 10, ferretero: 'u1', imagenPublicId: 'p', stock: undefined });
+  assert.ok(!('ferretero' in m) && !('imagenPublicId' in m));
+  assert.equal(m.stock, null);
+});
