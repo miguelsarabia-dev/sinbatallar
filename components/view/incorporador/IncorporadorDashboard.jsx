@@ -1,4 +1,6 @@
 "use client";
+import ChipsServicios from '../../ui/ChipsServicios';
+import SelectorZonas from '../../ui/SelectorZonas';
 import GananciasRol from '../../features/finance/GananciasRol';
 import { useState, useEffect } from 'react';
 import { useSession, signOut } from '@/contexts/AuthContext';
@@ -126,7 +128,8 @@ export default function IncorporadorDashboard() {
       // Agregar el ID del incorporador
       const dataWithIncorporador = {
         ...contratistaData,
-        incorporador: incorporadorData._id
+        curp: contratistaData.curp.trim().toUpperCase(),
+        incorporadorId: incorporadorData._id
       };
 
       const response = await fetch('/api/contratistas', {
@@ -313,8 +316,10 @@ export default function IncorporadorDashboard() {
       telefono: '',
       email: '',
       password: '',
+      curp: '',
       calificacionNivel: 'C',
       servicios: [],
+      areasIds: [],
       ubicacion: {
         lat: 19.4326,
         lng: -99.1332
@@ -351,6 +356,14 @@ export default function IncorporadorDashboard() {
       e.preventDefault();
       if (!formData.nombre || !formData.email || !formData.telefono || !formData.password || !formData.direccion) {
         showError('Todos los campos son obligatorios');
+        return;
+      }
+      if (!/^[A-Za-z0-9]{18}$/.test(formData.curp.trim())) {
+        showError('La CURP debe tener 18 caracteres');
+        return;
+      }
+      if (formData.servicios.length === 0) {
+        showError('Elige al menos un servicio');
         return;
       }
       handleCreateContratista(formData);
@@ -432,6 +445,20 @@ export default function IncorporadorDashboard() {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 md:mb-2">
+                  CURP *
+                </label>
+                <input
+                  type="text"
+                  value={formData.curp}
+                  onChange={(e) => setFormData({...formData, curp: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')})}
+                  maxLength={18}
+                  className="w-full px-3 py-2 md:py-2.5 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 md:mb-2">
                   Dirección *
                 </label>
                 <input
@@ -458,51 +485,23 @@ export default function IncorporadorDashboard() {
                 </select>
               </div>
 
-              {/* Servicios */}
+              {/* Servicios (chips) y zonas: los asigna el incorporador; el contratista no los edita */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 md:mb-3">
-                  Servicios que ofrece
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Servicios que ofrecerá * <span className="text-xs font-normal text-gray-500">(su especialidad se toma de aquí)</span>
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3 max-h-48 md:max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-3 md:p-4 bg-gray-50">
-                  {serviciosDisponibles.length > 0 ? serviciosDisponibles.map((servicio) => {
-                    const isSelected = formData.servicios.includes(servicio._id);
-                    return (
-                      <div
-                        key={servicio._id}
-                        onClick={() => toggleServicio(servicio._id)}
-                        className={`
-                          cursor-pointer rounded-lg border-2 p-2.5 md:p-3 transition-all duration-200 
-                          ${isSelected 
-                            ? 'border-primary bg-primary text-white shadow-md' 
-                            : 'border-gray-200 bg-white hover:border-primary hover:shadow-sm'
-                          }
-                        `}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 min-w-0">
-                            <h4 className={`font-medium text-sm ${isSelected ? 'text-white' : 'text-gray-900'} truncate`}>
-                              {servicio.nombre}
-                            </h4>
-                            <p className={`text-xs mt-1 ${isSelected ? 'text-blue-100' : 'text-gray-500'} truncate`}>
-                              {servicio.categoria}
-                            </p>
-                          </div>
-                          <div className={`ml-2 flex-shrink-0 text-lg ${isSelected ? 'text-white' : 'text-gray-400'}`}>
-                            {isSelected ? '✓' : '+'}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }) : (
-                    <div className="col-span-full text-center py-6 md:py-8 text-gray-500">
-                      <FaTools className="mx-auto h-8 w-8 mb-2" />
-                      <p className="text-sm">No hay servicios disponibles</p>
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Seleccionados: {formData.servicios.length} servicio(s)
-                </p>
+                <ChipsServicios
+                  seleccion={formData.servicios}
+                  onChange={(servicios) => setFormData(prev => ({ ...prev, servicios }))}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Zonas de cobertura</label>
+                <SelectorZonas
+                  seleccion={formData.areasIds}
+                  onChange={(areasIds) => setFormData(prev => ({ ...prev, areasIds }))}
+                />
               </div>
 
               {/* Ubicación */}
@@ -581,6 +580,8 @@ export default function IncorporadorDashboard() {
       servicios: (editingContratista?.servicios || []).map(servicio => 
         typeof servicio === 'string' ? servicio : servicio._id
       ),
+      areasIds: (editingContratista?.areasIds?.length ? editingContratista.areasIds : (editingContratista?.areaId ? [editingContratista.areaId] : []))
+        .map(z => String(z?._id || z)),
       ubicacion: {
         lat: editingContratista?.ubicacion?.lat || 0,
         lng: editingContratista?.ubicacion?.lng || 0,
@@ -631,6 +632,10 @@ export default function IncorporadorDashboard() {
       e.preventDefault();
       if (!formData.nombre || !formData.email || !formData.telefono || !formData.direccion) {
         showError('Todos los campos son obligatorios');
+        return;
+      }
+      if (formData.servicios.length === 0) {
+        showError('Elige al menos un servicio');
         return;
       }
       handleUpdateContratista(formData);
@@ -725,51 +730,23 @@ export default function IncorporadorDashboard() {
                 />
               </div>
 
-              {/* Servicios */}
+              {/* Servicios (chips) y zonas: los asigna el incorporador; el contratista no los edita */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 md:mb-3">
-                  Servicios que ofrece
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Servicios que ofrecerá * <span className="text-xs font-normal text-gray-500">(su especialidad se toma de aquí)</span>
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3 max-h-48 md:max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-3 md:p-4 bg-gray-50">
-                  {serviciosDisponibles.length > 0 ? serviciosDisponibles.map((servicio) => {
-                    const isSelected = formData.servicios.includes(servicio._id);
-                    return (
-                      <div
-                        key={servicio._id}
-                        onClick={() => toggleServicio(servicio._id)}
-                        className={`
-                          cursor-pointer rounded-lg border-2 p-2.5 md:p-3 transition-all duration-200 
-                          ${isSelected 
-                            ? 'border-primary bg-primary text-white shadow-md' 
-                            : 'border-gray-200 bg-white hover:border-primary hover:shadow-sm'
-                          }
-                        `}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 min-w-0">
-                            <h4 className={`font-medium text-sm ${isSelected ? 'text-white' : 'text-gray-900'} truncate`}>
-                              {servicio.nombre}
-                            </h4>
-                            <p className={`text-xs mt-1 ${isSelected ? 'text-blue-100' : 'text-gray-500'} truncate`}>
-                              {servicio.categoria}
-                            </p>
-                          </div>
-                          <div className={`ml-2 flex-shrink-0 text-lg ${isSelected ? 'text-white' : 'text-gray-400'}`}>
-                            {isSelected ? '✓' : '+'}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }) : (
-                    <div className="col-span-full text-center py-6 md:py-8 text-gray-500">
-                      <FaTools className="mx-auto h-8 w-8 mb-2" />
-                      <p className="text-sm">No hay servicios disponibles</p>
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Seleccionados: {formData.servicios.length} servicio(s)
-                </p>
+                <ChipsServicios
+                  seleccion={formData.servicios}
+                  onChange={(servicios) => setFormData(prev => ({ ...prev, servicios }))}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Zonas de cobertura</label>
+                <SelectorZonas
+                  seleccion={formData.areasIds}
+                  onChange={(areasIds) => setFormData(prev => ({ ...prev, areasIds }))}
+                />
               </div>
 
               {/* Ubicación */}
@@ -835,25 +812,35 @@ export default function IncorporadorDashboard() {
 
   // Componente: Modal de Gestión de Zonas
   const GestionZonasModal = () => {
-    // Un contratista tiene UNA zona (Contratista.areaId) y la asigna su incorporador: PUT /api/contratistas/:id { areaId }
-    const [zonaActual, setZonaActual] = useState(
-      selectedContratistaForZonas?.areaId?._id || selectedContratistaForZonas?.areaId || null
-    );
+    // Un contratista tiene hasta 5 zonas (Contratista.areasIds) y las asigna su incorporador: PUT /api/contratistas/:id { areasIds }
+    const idsIniciales = () => {
+      const c = selectedContratistaForZonas;
+      const lista = c?.areasIds?.length ? c.areasIds : (c?.areaId ? [c.areaId] : []);
+      return lista.map(z => String(z?._id || z));
+    };
+    const [zonasActuales, setZonasActuales] = useState(idsIniciales);
     const [guardandoZona, setGuardandoZona] = useState(false);
 
-    const asignarZona = async (areaId) => {
-      if (guardandoZona || areaId === zonaActual) return;
+    const alternarZona = async (areaId) => {
+      if (guardandoZona) return;
+      const nuevas = zonasActuales.includes(areaId)
+        ? zonasActuales.filter(z => z !== areaId)
+        : [...zonasActuales, areaId];
+      if (nuevas.length > 5) {
+        showError('Un contratista puede tener máximo 5 zonas');
+        return;
+      }
       try {
         setGuardandoZona(true);
         const response = await fetch(`/api/contratistas/${selectedContratistaForZonas._id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ areaId })
+          body: JSON.stringify({ areasIds: nuevas })
         });
         const data = await response.json().catch(() => null);
         if (response.ok) {
-          showSuccess(areaId ? 'Zona asignada al contratista' : 'Zona retirada del contratista');
-          setZonaActual(areaId);
+          showSuccess(nuevas.length > zonasActuales.length ? 'Zona asignada al contratista' : 'Zona retirada del contratista');
+          setZonasActuales(nuevas);
           loadData();
         } else {
           showError(data?.error || 'Error al asignar la zona');
@@ -873,7 +860,7 @@ export default function IncorporadorDashboard() {
             <div className="sticky top-0 bg-white border-b border-gray-200 px-4 md:px-6 py-4 z-10">
               <div className="flex justify-between items-start">
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-lg md:text-xl font-bold text-gray-900 truncate">Zona del contratista</h3>
+                  <h3 className="text-lg md:text-xl font-bold text-gray-900 truncate">Zonas del contratista</h3>
                   <p className="text-xs md:text-sm text-gray-600 mt-1 truncate">
                     Contratista: <span className="font-semibold">{selectedContratistaForZonas?.nombre}</span>
                   </p>
@@ -895,19 +882,12 @@ export default function IncorporadorDashboard() {
                 <>
                   <div className="mb-4 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-xs md:text-sm text-blue-800">
-                      <strong>Zona del contratista:</strong>{' '}
-                      {zonaActual ? (areasDisponibles.find(a => a._id === zonaActual)?.nombre || 'Asignada') : 'Sin zona (es obligatoria para aprobarlo)'}
+                      <strong>Zonas del contratista ({zonasActuales.length}/5):</strong>{' '}
+                      {zonasActuales.length
+                        ? zonasActuales.map(id => areasDisponibles.find(a => a._id === id)?.nombre || 'Asignada').join(', ')
+                        : 'Sin zonas (se necesita al menos una para aprobarlo)'}
                     </p>
-                    {zonaActual && (
-                      <button
-                        type="button"
-                        onClick={() => asignarZona(null)}
-                        disabled={guardandoZona}
-                        className="mt-2 text-xs text-red-600 underline disabled:opacity-50"
-                      >
-                        Quitar zona
-                      </button>
-                    )}
+                    <p className="text-xs text-blue-700 mt-1">Toca una zona para asignarla o quitarla. El contratista solo puede verlas.</p>
                   </div>
 
                   <div className="space-y-2 md:space-y-3">
@@ -918,7 +898,7 @@ export default function IncorporadorDashboard() {
                       </div>
                     ) : (
                       areasDisponibles.map((area) => {
-                        const estaAsignado = zonaActual === area._id;
+                        const estaAsignado = zonasActuales.includes(area._id);
                         
                         return (
                           <div
@@ -928,15 +908,15 @@ export default function IncorporadorDashboard() {
                                 ? 'border-primary bg-primary/5'
                                 : 'border-gray-200 hover:border-gray-300'
                             }`}
-                            onClick={() => asignarZona(area._id)}
+                            onClick={() => alternarZona(area._id)}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex items-start gap-2 md:gap-3 flex-1 min-w-0">
                                 <input
-                                  type="radio"
-                                  name="zona-contratista"
+                                  type="checkbox"
+                                  name="zonas-contratista"
                                   checked={estaAsignado}
-                                  onChange={() => asignarZona(area._id)}
+                                  onChange={() => alternarZona(area._id)}
                                   onClick={(e) => e.stopPropagation()}
                                   className="mt-0.5 w-5 h-5 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary flex-shrink-0"
                                 />

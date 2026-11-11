@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { permisoCambioZona, datosIncorporacion, estadoIncorporacion, DATOS_REQUERIDOS } from '../lib/datos-incorporacion.js';
 import { CAMPOS_PROPIOS, CAMPOS_INCORPORADOR, CAMPOS_ADMIN } from '../lib/campos-contratista.js';
 
-const completo = { nombre: 'A', email: 'a@a.com', telefono: '5511111111', curp: 'X'.repeat(18), direccion: 'Calle 1', especialidad: 'Plomería' };
+const completo = { nombre: 'A', email: 'a@a.com', telefono: '5511111111', curp: 'X'.repeat(18), direccion: 'Calle 1', especialidad: 'Plomería', servicios: ['507f1f77bcf86cd799439012'] };
 
 test('la zona la asignan solo el admin y el incorporador dueño', () => {
   assert.deepEqual(permisoCambioZona('admin', 'z1'), { ok: true });

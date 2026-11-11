@@ -8,7 +8,8 @@ import { enviarEmailBienvenidaContratista } from '@/lib/email-service'
 import { requireSession, getSessionFromRequest } from '@/lib/session'
 import { esObjectId, pick, soloTexto } from '@/lib/sanitize'
 import { relacionCon, camposPara, incorporadorDe, aplicarReglasAprobacion, SELECT_PUBLICO } from '@/lib/contratista-acceso'
-import { permisoCambioZona } from '@/lib/datos-incorporacion'
+import { permisoCambioZona, permisoCambioServicios } from '@/lib/datos-incorporacion'
+import { validarServicios } from '@/lib/servicios-contratista'
 import { validarZonas, zonasDeBody, zonasDe, sincronizarAreas } from '@/lib/zona-contratista'
 
 // GET: Listar todos los contratistas o uno por ID
@@ -78,7 +79,7 @@ export async function POST(req) {
   // Auto-registro público permitido, pero sin privilegios: solo admin/incorporador lo dejan activo.
   const session = await getSessionFromRequest(req);
   const body = await req.json();
-  const { nombre, email, telefono, curp, password, especialidad, direccion, notas, incorporadorId } = body;
+  const { nombre, email, telefono, curp, password, especialidad, direccion, notas, incorporadorId, servicios } = body;
   for (const v of [nombre, email, telefono, curp, especialidad, direccion, notas, incorporadorId]) {
     if (v !== undefined && typeof v !== 'string') {
       return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
@@ -131,6 +132,15 @@ export async function POST(req) {
     zonasAlta = zonas;
   }
 
+  // Servicios (los elige quien da de alta: admin o incorporador dueño); la especialidad se deriva de ellos
+  let serviciosAlta = { servicios: [], nombres: [] };
+  if (servicios !== undefined) {
+    if (!autorizadoActivar) return NextResponse.json({ error: 'Los servicios los asigna tu incorporador' }, { status: 403 });
+    const serv = await validarServicios(servicios);
+    if (!serv.ok) return NextResponse.json({ error: serv.error }, { status: serv.status });
+    serviciosAlta = serv;
+  }
+
   // Contraseña temporal que dio el incorporador/admin (nunca derivada del CURP)
   const passwordTemporal = await bcrypt.hash(password, 12);
 
@@ -139,7 +149,8 @@ export async function POST(req) {
     email: email.toLowerCase().trim(),
     telefono: telefono.trim(),
     curp: curp.trim().toUpperCase(),
-    especialidad: especialidad?.trim() || '',
+    especialidad: especialidad?.trim() || serviciosAlta.nombres.join(', '),
+    servicios: serviciosAlta.servicios,
     direccion: direccion?.trim() || '',
     notas: notas?.trim() || '',
     password: passwordTemporal,
@@ -197,8 +208,16 @@ export async function PUT(req) {
     // La zona la asigna el incorporador (o el admin): si el contratista la manda, 403 explícito, no se ignora
     const permisoZona = permisoCambioZona(relacion, zonasDeBody(body));
     if (!permisoZona.ok) return NextResponse.json({ error: permisoZona.error }, { status: permisoZona.status });
+    const permisoServ = permisoCambioServicios(relacion, body.servicios);
+    if (!permisoServ.ok) return NextResponse.json({ error: permisoServ.error }, { status: permisoServ.status });
 
     let data = pick(body, camposPara(relacion));
+    if (data.servicios !== undefined) {
+      const serv = await validarServicios(data.servicios);
+      if (!serv.ok) return NextResponse.json({ error: serv.error }, { status: serv.status });
+      data.servicios = serv.servicios;
+      if (data.especialidad === undefined) data.especialidad = serv.nombres.join(', '); // la especialidad se deriva de los servicios
+    }
     delete data.areaId;
     delete data.areasIds;
     const zonasPedidas = zonasDeBody(body);

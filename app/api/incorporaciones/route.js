@@ -27,7 +27,7 @@ export async function GET(request) {
     }
 
     const contratistas = await Contratista.find(filtro)
-      .select('nombre email telefono curp direccion especialidad areaId areasIds aprobado estatus createdAt')
+      .select('nombre email telefono curp direccion especialidad servicios areaId areasIds aprobado estatus createdAt')
       .sort({ createdAt: -1 })
       .limit(300);
 

@@ -52,3 +52,28 @@ test('pendiente de liquidar: técnico terminó y el cliente no ha declarado el s
   assert.equal(pendienteDeLiquidar({ ...cita, tecnicoMarcoCompletado: false }, { modalidadPago: 'anticipo', saldo: {} }), false);
   assert.equal(pendienteDeLiquidar(cita, null), false);
 });
+
+import { permisoCambioServicios, DATOS_REQUERIDOS } from '../lib/datos-incorporacion.js';
+import { CAMPOS_PROPIOS, CAMPOS_INCORPORADOR, CAMPOS_ADMIN } from '../lib/campos-contratista.js';
+test('los servicios los asigna el incorporador/admin, no el contratista', () => {
+  assert.equal(permisoCambioServicios('self', ['x']).status, 403);
+  assert.equal(permisoCambioServicios('self', undefined).ok, true);
+  assert.equal(permisoCambioServicios('incorporador', ['x']).ok, true);
+  assert.ok(!CAMPOS_PROPIOS.includes('servicios') && !CAMPOS_PROPIOS.includes('especialidad'));
+  assert.ok(CAMPOS_INCORPORADOR.includes('servicios') && CAMPOS_ADMIN.includes('servicios'));
+  assert.ok(DATOS_REQUERIDOS.includes('servicios'));
+});
+
+import { ferreteriaPublica, materialPublico } from '../lib/ferreterias-publico.js';
+test('ferretería pública: sin correo, ids de usuario ni campos internos', () => {
+  const f = ferreteriaPublica(
+    { _id: 'f1', nombreNegocio: 'Ferre', telefono: '555', direccion: 'Calle', horario: '9-6', ubicacion: { type: 'Point', coordinates: [1, 2] }, pendienteAprobacion: false, createdAt: 'x', __v: 0 },
+    { _id: 'u1', nombre: 'Dueño', email: 'a@b.c', telefono: '555', fotoUrl: 'z' }
+  );
+  const txt = JSON.stringify(f);
+  assert.ok(!/a@b\.c|u1|fotoUrl|pendienteAprobacion|createdAt/.test(txt), txt);
+  assert.equal(f.nombreNegocio, 'Ferre');
+  const m = materialPublico({ _id: 'm1', nombre: 'Tubo', categoria: 'c', unidad: 'pieza', precio: 10, ferretero: 'u1', imagenPublicId: 'p', stock: undefined });
+  assert.ok(!('ferretero' in m) && !('imagenPublicId' in m));
+  assert.equal(m.stock, null);
+});
