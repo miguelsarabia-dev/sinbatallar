@@ -86,7 +86,16 @@ export async function PUT(request, { params }) {
     }
 
     // Actualizar campos del perfil Tecnico
-    if (body.especialidades !== undefined) tecnico.especialidades = body.especialidades;
+    // Las especialidades las define el contratista dueño (o admin); el propio técnico no las cambia
+    if (body.especialidades !== undefined) {
+      if (!esDueno && session.role !== 'admin') {
+        return NextResponse.json({ error: 'Las especialidades las asigna tu contratista' }, { status: 403 });
+      }
+      if (!Array.isArray(body.especialidades) || body.especialidades.some(e => typeof e !== 'string' || !e.trim())) {
+        return NextResponse.json({ error: 'especialidades debe ser una lista de textos' }, { status: 400 });
+      }
+      tecnico.especialidades = [...new Set(body.especialidades.map(e => e.trim()))];
+    }
     if (body.areasCobertura !== undefined) tecnico.areasCobertura = body.areasCobertura;
     // Activar/desactivar la cuenta lo decide el contratista dueño (o admin), no el propio técnico
     if (body.activo !== undefined) {
