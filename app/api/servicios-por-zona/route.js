@@ -1,5 +1,7 @@
 import { connectDB } from '@/lib/mongoose';
 import Area from '@/models/Area';
+import Contratista from '@/models/Contratista';
+import Servicio from '@/models/Servicio'; // registrado para el populate de servicios
 import { NextResponse } from 'next/server';
 import DemandaFueraZona from '@/models/DemandaFueraZona';
 
@@ -29,14 +31,6 @@ export async function GET(request) {
           }
         }
       }
-    }).populate({
-      path: 'contratistas',
-      match: { activo: true, aprobado: true }, // Solo contratistas activos
-      select: '-password -curp -informacionPago -notas', // nunca datos sensibles
-      populate: {
-        path: 'servicios',
-        model: 'Servicio'
-      }
     });
 
     if (!area) {
@@ -61,7 +55,17 @@ export async function GET(request) {
       });
     }
 
-    if (!area.contratistas || area.contratistas.length === 0) {
+    // Contratistas de la zona: por Area.contratistas Y por las zonas del propio contratista (areasIds / areaId), para que
+    // no queden fuera los que se asignaron a la zona sin actualizar el arreglo del Area. Solo aprobados y disponibles.
+    const contratistas = await Contratista.find({
+      aprobado: true,
+      activo: true,
+      $or: [{ _id: { $in: area.contratistas || [] } }, { areasIds: area._id }, { areaId: area._id }]
+    })
+      .select('-password -curp -informacionPago -notas') // nunca datos sensibles
+      .populate({ path: 'servicios', model: Servicio });
+
+    if (contratistas.length === 0) {
       return NextResponse.json({
         message: 'No hay contratistas activos en tu zona actualmente',
         servicios: [],
@@ -75,7 +79,7 @@ export async function GET(request) {
     const serviciosSet = new Set();
     const serviciosConContratistas = [];
 
-    area.contratistas.forEach(contratista => {
+    contratistas.forEach(contratista => {
       if (contratista.servicios) {
         contratista.servicios.forEach(servicio => {
           const servicioId = servicio._id.toString();
@@ -85,7 +89,7 @@ export async function GET(request) {
 
             serviciosConContratistas.push({
               servicio: servicio.toObject ? servicio.toObject() : servicio,
-              contratistas: area.contratistas
+              contratistas: contratistas
                 .filter(c => c.servicios.some(s => s._id.toString() === servicioId))
                 .map(c => ({
                   _id: c._id,
@@ -97,7 +101,7 @@ export async function GET(request) {
                   totalCalificaciones: c.totalCalificaciones || 0,
                   ubicacion: c.ubicacion
                 })),
-              totalContratistas: area.contratistas.filter(c =>
+              totalContratistas: contratistas.filter(c =>
                 c.servicios.some(s => s._id.toString() === servicioId)
               ).length
             });
