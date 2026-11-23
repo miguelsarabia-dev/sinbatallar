@@ -1,9 +1,9 @@
 import { connectDB } from '@/lib/mongoose';
-import Area from '@/models/Area';
 import Contratista from '@/models/Contratista';
 import Servicio from '@/models/Servicio'; // registrado para el populate de servicios
 import { NextResponse } from 'next/server';
 import DemandaFueraZona from '@/models/DemandaFueraZona';
+import { areasQueContienen } from '@/lib/geo-utils';
 
 // GET: Obtener servicios disponibles basados en la ubicación del usuario
 export async function GET(request) {
@@ -20,20 +20,11 @@ export async function GET(request) {
   }
 
   try {
-    // Buscar el área activa que contiene la ubicación del usuario
-    const area = await Area.findOne({
-      activo: true,
-      poligono: {
-        $geoIntersects: {
-          $geometry: {
-            type: "Point",
-            coordinates: [lng, lat] // MongoDB usa [lng, lat]
-          }
-        }
-      }
-    });
+    // Zonas activas que contienen la ubicación del usuario. Pueden ser varias (polígonos encimados): con findOne se
+    // tomaba una sola y el cliente no veía a los contratistas de la otra.
+    const areas = await areasQueContienen({ lat, lng }, { soloActivas: true });
 
-    if (!area) {
+    if (!areas.length) {
       // Demanda sin cobertura: se agrega por celda de ~1 km para que los aperturadores vean dónde abrir zona
       try {
         const muni = searchParams.get('municipio');
@@ -57,13 +48,29 @@ export async function GET(request) {
 
     // Contratistas de la zona: por Area.contratistas Y por las zonas del propio contratista (areasIds / areaId), para que
     // no queden fuera los que se asignaron a la zona sin actualizar el arreglo del Area. Solo aprobados y disponibles.
+    const areaIds = areas.map(a => a._id);
     const contratistas = await Contratista.find({
       aprobado: true,
       activo: true,
-      $or: [{ _id: { $in: area.contratistas || [] } }, { areasIds: area._id }, { areaId: area._id }]
+      $or: [
+        { _id: { $in: areas.flatMap(a => a.contratistas || []) } },
+        { areasIds: { $in: areaIds } },
+        { areaId: { $in: areaIds } }
+      ]
     })
       .select('-password -curp -informacionPago -notas') // nunca datos sensibles
-      .populate({ path: 'servicios', model: Servicio });
+      .populate({ path: 'servicios', model: Servicio })
+      .lean();
+
+    // Un servicio borrado queda como null tras el populate: se descarta (antes tumbaba la ruta con un 500)
+    contratistas.forEach(c => { c.servicios = (c.servicios || []).filter(Boolean); });
+
+    // Zona que se reporta al cliente: la primera que tenga contratistas con servicios (o la primera si ninguna)
+    const ligadoA = (c, a) =>
+      (a.contratistas || []).some(id => String(id) === String(c._id)) ||
+      (c.areasIds || []).some(id => String(id) === String(a._id)) ||
+      String(c.areaId) === String(a._id);
+    const area = areas.find(a => contratistas.some(c => c.servicios.length && ligadoA(c, a))) || areas[0];
 
     if (contratistas.length === 0) {
       return NextResponse.json({
