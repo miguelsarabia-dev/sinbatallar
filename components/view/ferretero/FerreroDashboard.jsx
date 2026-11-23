@@ -1,6 +1,7 @@
 'use client';
 
 import VentasSurtidasFerretero from '../../features/finance/VentasSurtidasFerretero';
+import SolicitudesFerretero from './SolicitudesFerretero';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth, signOut } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -9,7 +10,7 @@ import Modal from '@/components/ui/Modal';
 import {
   FaStore, FaBoxOpen, FaPlus, FaEdit, FaTrash, FaSearch,
   FaToggleOn, FaToggleOff, FaSignOutAlt, FaBars, FaTimes,
-  FaTag, FaChevronDown, FaCheck, FaImage, FaSave, FaMapMarkerAlt
+  FaTag, FaChevronDown, FaCheck, FaImage, FaSave, FaMapMarkerAlt, FaShoppingCart
 } from 'react-icons/fa';
 import MapLocationSelector from '@/components/maps/MapLocationSelector';
 
@@ -50,6 +51,8 @@ export default function FerreroDashboard() {
   const [ferreteroData, setFerreteroData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Solicitudes de material pendientes (las reporta SolicitudesFerretero, que se actualiza cada 30 s)
+  const [solicitudesPendientes, setSolicitudesPendientes] = useState(0);
 
   // Ubicación del negocio
   const [showMapaUbicacion, setShowMapaUbicacion] = useState(false);
@@ -485,6 +488,22 @@ export default function FerreroDashboard() {
               </button>
               <h2 className="text-lg font-bold text-gray-900">Mi Catálogo</h2>
             </div>
+            <div className="flex items-center gap-2">
+            <button
+              onClick={() => document.getElementById('solicitudes')?.scrollIntoView({ behavior: 'smooth' })}
+              className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                solicitudesPendientes > 0 ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+              title="Solicitudes de material"
+            >
+              <FaShoppingCart size={14} />
+              <span className="hidden sm:inline">Solicitudes</span>
+              {solicitudesPendientes > 0 && (
+                <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-5 h-5 px-1.5 flex items-center justify-center">
+                  {solicitudesPendientes}
+                </span>
+              )}
+            </button>
             <button
               onClick={abrirCrear}
               className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium text-sm"
@@ -493,6 +512,7 @@ export default function FerreroDashboard() {
               <span className="hidden sm:inline">Nuevo material</span>
               <span className="sm:hidden">Nuevo</span>
             </button>
+            </div>
           </div>
 
           {/* Banner catálogo inactivo */}
@@ -508,6 +528,9 @@ export default function FerreroDashboard() {
           )}
 
           <div className="flex-1 p-4 sm:p-6 space-y-4">
+            {/* Pedidos de material: primero, porque requieren respuesta */}
+            <SolicitudesFerretero showSuccess={showSuccess} showError={showError} onPendientes={setSolicitudesPendientes} />
+
             {/* Filtros */}
             <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
