@@ -141,7 +141,11 @@ export async function POST(request) {
     }
 
     // Resolver la zona (Area) a partir de las coordenadas de la dirección seleccionada
-    ubicacionProcesada.zona = await resolverAreaId(ubicacionProcesada.coordenadas);
+    // (si cae en zonas encimadas, la del contratista elegido)
+    ubicacionProcesada.zona = await resolverAreaId(ubicacionProcesada.coordenadas, [
+      ...(contratista.areasIds || []),
+      contratista.areaId
+    ]);
 
     // fechaProgramada (si la app la manda) tiene prioridad sobre fechaPreferida
     const fechaTexto = fechaProgramadaForm || fechaPreferida;

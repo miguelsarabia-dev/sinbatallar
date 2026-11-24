@@ -6,6 +6,7 @@ import { esObjectId, escaparRegex } from '@/lib/sanitize';
 import { perfilIdDe } from '@/lib/perfiles';
 import { puedeEditarArea, verificarAccesoArea, SELECT_AREA_PUBLICA } from '@/lib/areas-acceso';
 import { validarPoligono } from '@/lib/poligono';
+import { quitarZonaDeTodos } from '@/lib/zona-contratista';
 
 
 // DELETE - Eliminar área
@@ -33,6 +34,8 @@ export async function DELETE(request, { params }) {
         { status: 404 }
       );
     }
+
+    await quitarZonaDeTodos(area._id);
 
     return NextResponse.json({
       message: 'Área eliminada exitosamente',
