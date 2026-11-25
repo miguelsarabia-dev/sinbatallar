@@ -101,6 +101,18 @@ export default function CotizacionCliente({ cotizacion, cita, onAceptar, onRecha
           </div>
         )}
 
+        {/* Modelo inicial: día acordado para empezar el trabajo (se acepta junto con el precio) */}
+        {cotizacion.fechaInicioPropuesta && (
+          <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-sm">
+            <p className="font-medium text-gray-900">Inicio del trabajo</p>
+            <p className="text-gray-700">
+              {new Date(cotizacion.fechaInicioPropuesta).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
+              {cotizacion.horaInicioPropuesta ? ` a las ${cotizacion.horaInicioPropuesta}` : ''}
+            </p>
+            {cotizacion.estado === 'enviada' && <p className="text-xs text-gray-500 mt-1">Al aceptar la cotización aceptas también este día.</p>}
+          </div>
+        )}
+
         {/* Imágenes de evaluación/cotización */}
         {cotizacion.imagenesCotizacion && cotizacion.imagenesCotizacion.length > 0 && (
           <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">

@@ -24,6 +24,9 @@ export async function GET(request, { params }) {
     const cita = await Cita.findById(id)
       .populate('cliente', 'nombre email telefono')
       .populate('contratista', 'nombre email telefono calificacion')
+      // Modelo inicial: quién la atiende (especialista) y los aspirantes que lleva
+      .populate({ path: 'especialista', select: 'user promedioCalificacion', populate: { path: 'user', select: 'nombre telefono' } })
+      .populate({ path: 'aspirantes', select: 'user', populate: { path: 'user', select: 'nombre' } })
       .populate('servicio', 'nombre descripcion categoria precio')
       .populate('cotizaciones')
       .populate('cotizacionAceptada');

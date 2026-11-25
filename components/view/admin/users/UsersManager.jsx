@@ -10,7 +10,7 @@ export default function UsersManager({
   onDeleteUser, 
   onUpdateUser, 
   onConvertToAperturador, 
-  onConvertToIncorporador,
+  onConvertToAsociado,
   showError,
   showSuccess,
   showConfirm
@@ -130,8 +130,8 @@ export default function UsersManager({
     fetchUsers(searchParams, pagination.page);
   };
 
-  const handleConvertToIncorporador = async (userId) => {
-    await onConvertToIncorporador(userId);
+  const handleConvertToAsociado = async (userId) => {
+    await onConvertToAsociado(userId);
     fetchUsers(searchParams, pagination.page);
   };
 
@@ -249,7 +249,7 @@ export default function UsersManager({
           }}
           onUpdate={handleUpdateUser}
           onConvertToAperturador={handleConvertToAperturador}
-          onConvertToIncorporador={handleConvertToIncorporador}
+          onConvertToAsociado={handleConvertToAsociado}
           showError={showError}
         />
       )}

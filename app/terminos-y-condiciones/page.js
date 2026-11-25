@@ -53,7 +53,7 @@ export default function TerminosYCondiciones() {
           <li><strong>Cliente:</strong> solicita servicios y acepta cotizaciones.</li>
           <li><strong>Contratista:</strong> ofrece servicios, envía cotizaciones y los ejecuta.</li>
           <li><strong>Técnico:</strong> personal asociado a un contratista que atiende citas y elabora cotizaciones en su nombre.</li>
-          <li><strong>Aperturador e incorporador:</strong> roles internos de la plataforma que participan en la gestión de zonas y en la incorporación de contratistas.</li>
+          <li><strong>Aperturador y asociado:</strong> roles internos de la plataforma que participan en la gestión de zonas y en la incorporación de contratistas.</li>
           <li><strong>Ferretero:</strong> proveedor de materiales que publica su catálogo para contratistas cercanos.</li>
         </ul>
         <p className="mt-3">Cada rol solo puede usar las funciones correspondientes a su cuenta.</p>
@@ -117,7 +117,7 @@ export default function TerminosYCondiciones() {
         <p>
           Sin Batallar cobra una comisión sobre la mano de obra de cada servicio completado; los
           materiales se reembolsan íntegramente al contratista. Cuando corresponde, parte de esa
-          comisión se distribuye entre el aperturador y el incorporador involucrados en la zona o en la
+          comisión se distribuye entre el aperturador y el asociado involucrados en la zona o en la
           incorporación del contratista. Los porcentajes vigentes pueden ajustarse; el desglose de cada
           cotización siempre está disponible para las partes involucradas.
         </p>

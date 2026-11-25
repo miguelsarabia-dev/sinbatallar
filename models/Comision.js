@@ -33,8 +33,8 @@ const comisionSchema = new mongoose.Schema({
             porcentaje: { type: Number, default: 2, min: 0, max: 100 },
             monto: { type: Number, default: 0, min: 0 }
         },
-        incorporador: {
-            id: { type: mongoose.Schema.Types.ObjectId, ref: 'Incorporador' },
+        asociado: {
+            id: { type: mongoose.Schema.Types.ObjectId, ref: 'Asociado' },
             porcentaje: { type: Number, default: 3, min: 0, max: 100 },
             monto: { type: Number, default: 0, min: 0 }
         },

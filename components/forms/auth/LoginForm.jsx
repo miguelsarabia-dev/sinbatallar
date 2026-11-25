@@ -1,9 +1,20 @@
 "use client";
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { FaUserAlt, FaLock, FaEye, FaEyeSlash, FaTools, FaUser, FaStore } from 'react-icons/fa';
 import { GoogleLogin } from '@react-oauth/google';
+import { esAsociado } from '@/lib/roles';
+
+// Área de cada rol después de entrar.
+const destinoDe = (role) => {
+  if (esAsociado(role)) return '/asociado';
+  switch (role) {
+    case 'admin': return '/admin';
+    case 'contratista': return '/contratista/dashboard';
+    case 'aperturador': case 'especialista': case 'aspirante': case 'ferretero': case 'tecnico': return `/${role}`;
+    default: return '/main/servicios-programables';
+  }
+};
 
 export default function LoginForm() {
   const [identifier, setIdentifier] = useState('');
@@ -11,8 +22,8 @@ export default function LoginForm() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // En la web se conserva el selector de tipo de cuenta (la app móvil ya detecta el rol sola)
   const [userType, setUserType] = useState('usuario');
-  const router = useRouter();
   const { signIn, signInWithGoogle } = useAuth();
 
   const handleGoogleSuccess = async (credentialResponse) => {
@@ -26,17 +37,7 @@ export default function LoginForm() {
         setError(result.error);
       } else if (result?.success) {
         console.log('✅ Login con Google exitoso');
-        const user = result.user;
-
-        if (user?.role === 'admin') {
-          window.location.href = '/admin';
-        } else if (user?.role === 'aperturador') {
-          window.location.href = '/aperturador';
-        } else if (user?.role === 'incorporador') {
-          window.location.href = '/incorporador';
-        } else {
-          window.location.href = '/main/servicios-programables';
-        }
+        window.location.href = destinoDe(result.user?.role);
       }
     } catch (error) {
       console.error('❌ Error en login con Google:', error);
@@ -54,82 +55,31 @@ export default function LoginForm() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
-    console.log('🔐 Iniciando login:', { userType, identifier });
-
-    let email = identifier;
-
     try {
-      if (userType === 'contratista') {
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) {
-          setError('Para contratistas, ingresa un email válido');
-          setLoading(false);
-          return;
-        }
-
-        const result = await signIn({ email: identifier, password, userType: 'contratista' });
-
-        if (result?.error) {
-          setError(result.error);
-        } else if (result?.success) {
-          window.location.href = '/contratista/dashboard';
-        } else {
-          setError('Error en el inicio de sesión');
-        }
-      } else if (userType === 'ferretero') {
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) {
-          setError('Ingresa un email válido');
-          setLoading(false);
-          return;
-        }
-
-        const result = await signIn({ email: identifier, password, userType: 'ferretero' });
-
-        if (result?.error) {
-          setError(result.error);
-        } else if (result?.success) {
-          window.location.href = '/ferretero';
-        } else {
-          setError('Error en el inicio de sesión');
-        }
+      const esEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier.trim());
+      if (userType !== 'usuario' && !esEmail) {
+        setError('Ingresa un email válido');
+        setLoading(false);
+        return;
+      }
+      // usuario: email o teléfono de 10 dígitos (el servidor resuelve la cuenta)
+      const result = await signIn({
+        ...(esEmail ? { email: identifier.trim() } : { telefono: identifier }),
+        password,
+        userType,
+      });
+      if (result?.error) {
+        setError(result.error);
+      } else if (result?.success) {
+        window.location.href = destinoDe(result.user?.role);
+        return;
       } else {
-        // Lógica para usuarios: email o teléfono de 10 dígitos (el servidor resuelve la cuenta)
-        const esEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
-
-        console.log('👤 Login como usuario');
-        const result = await signIn({
-          ...(esEmail ? { email: identifier } : { telefono: identifier }),
-          password,
-          userType: 'usuario'
-        });
-
-        console.log('👤 Resultado login usuario:', result);
-
-        if (result?.error) {
-          setError(result.error);
-        } else if (result?.success) {
-          console.log('✅ Login usuario exitoso');
-          const user = result.user;
-
-          // Redirigir según el rol
-          if (user?.role === 'admin') {
-            window.location.href = '/admin';
-          } else if (user?.role === 'aperturador') {
-            window.location.href = '/aperturador';
-          } else if (user?.role === 'incorporador') {
-            window.location.href = '/incorporador';
-          } else {
-            window.location.href = '/main/servicios-programables';
-          }
-        } else {
-          setError('Error en el inicio de sesión');
-        }
+        setError('Error en el inicio de sesión');
       }
     } catch (error) {
       console.error('❌ Error general en login:', error);
       setError('Error de conexión. Intenta nuevamente.');
     }
-
     setLoading(false);
   };
 
@@ -161,39 +111,20 @@ export default function LoginForm() {
                   Tipo de cuenta
                 </label>
                 <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setUserType('usuario')}
-                    className={`p-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-1.5 ${userType === 'usuario'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
-                      }`}
-                  >
-                    <FaUser size={20} />
-                    <span className="text-xs font-medium">Usuario</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUserType('contratista')}
-                    className={`p-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-1.5 ${userType === 'contratista'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
-                      }`}
-                  >
-                    <FaTools size={20} />
-                    <span className="text-xs font-medium">Contratista</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUserType('ferretero')}
-                    className={`p-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-1.5 ${userType === 'ferretero'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
-                      }`}
-                  >
-                    <FaStore size={20} />
-                    <span className="text-xs font-medium">Ferretería</span>
-                  </button>
+                  {[['usuario', 'Usuario', FaUser], ['contratista', 'Contratista', FaTools], ['ferretero', 'Ferretería', FaStore]].map(([valor, etiqueta, Icono]) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      onClick={() => setUserType(valor)}
+                      className={`p-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-1.5 ${userType === valor
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
+                        }`}
+                    >
+                      <Icono size={20} />
+                      <span className="text-xs font-medium">{etiqueta}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -314,24 +245,6 @@ export default function LoginForm() {
                 className="text-primary font-semibold hover:text-primary-hover"
               >
                 Regístrate aquí
-              </a>
-            </div>
-            <div className="text-gray-600 text-sm">
-              ¿Eres un contratista?{' '}
-              <a
-                href="/register/ContratistaRegister"
-                className="text-primary font-semibold hover:text-primary-hover"
-              >
-                Registra tu empresa
-              </a>
-            </div>
-            <div className="text-gray-600 text-sm">
-              ¿Tienes una ferretería?{' '}
-              <a
-                href="/register/FerreteroRegister"
-                className="text-primary font-semibold hover:text-primary-hover"
-              >
-                Únete como proveedor
               </a>
             </div>
           </div>

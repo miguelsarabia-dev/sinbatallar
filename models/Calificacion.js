@@ -19,7 +19,7 @@ const calificacionSchema = new mongoose.Schema({
     },
     tipoCalificado: {
         type: String,
-        enum: ['Contratista', 'Tecnico'],
+        enum: ['Contratista', 'Tecnico', 'Especialista'],
         required: true
     },
     puntaje: {

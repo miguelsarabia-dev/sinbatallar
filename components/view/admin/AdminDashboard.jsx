@@ -13,13 +13,14 @@ import {
   FaSignOutAlt, FaPlus, FaEdit, FaTrash, FaEye, FaSync, FaUserPlus,
   FaTimes, FaCar, FaBars, FaWarehouse, FaTools, FaFileAlt, FaBan,
   FaPlay, FaPause, FaMapMarkedAlt, FaMoneyBillWave, FaCalendarAlt, FaStore,
-  FaChevronLeft, FaChevronRight
+  FaChevronLeft, FaChevronRight, FaChalkboardTeacher
 } from 'react-icons/fa';
 import CreateServiceForm from './forms/CreateServiceForm';
 import EditServiceForm from './forms/EditServiceForm';
 import UsersManager from './users/UsersManager';
 import ContratistasManager from './contratistas/ContratistasManager';
 import FinanzasDashboard from './finanzas/FinanzasDashboard';
+import ModeloInicialAdmin from './inicial/ModeloInicialAdmin';
 import PagosAdmin from './pagos/PagosAdmin';
 import TecnicosAdmin from './tecnicos/TecnicosAdmin';
 import SolicitudesMaterialAdmin from './solicitudes/SolicitudesMaterialAdmin';
@@ -54,7 +55,7 @@ export default function AdminDashboard() {
   const [citas, setCitas] = useState([]);
   const [areas, setAreas] = useState([]);
   const [aperturadores, setAperturadores] = useState([]);
-  const [incorporadores, setIncorporadores] = useState([]);
+  const [asociados, setAsociados] = useState([]);
   const [ferreteros, setFerreteros] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -65,11 +66,11 @@ export default function AdminDashboard() {
   const [showMapaZonas, setShowMapaZonas] = useState(false);
   const [showEditAreaForm, setShowEditAreaForm] = useState(false);
   const [showEditAperturadorForm, setShowEditAperturadorForm] = useState(false);
-  const [showEditIncorporadorForm, setShowEditIncorporadorForm] = useState(false);
+  const [showEditAsociadoForm, setShowEditAsociadoForm] = useState(false);
   const [editingService, setEditingService] = useState(null);
   const [editingArea, setEditingArea] = useState(null);
   const [editingAperturador, setEditingAperturador] = useState(null);
-  const [editingIncorporador, setEditingIncorporador] = useState(null);
+  const [editingAsociado, setEditingAsociado] = useState(null);
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalContratistas: 0,
@@ -80,7 +81,7 @@ export default function AdminDashboard() {
     citasActivas: 0,
     totalAreas: 0,
     totalAperturadores: 0,
-    totalIncorporadores: 0
+    totalAsociados: 0
   });
 
   // Debugging logs
@@ -110,7 +111,7 @@ export default function AdminDashboard() {
       if (data.citas) setCitas(data.citas);
       if (data.areas) setAreas(data.areas);
       if (data.aperturadores) setAperturadores(data.aperturadores);
-      if (data.incorporadores) setIncorporadores(data.incorporadores);
+      if (data.asociados) setAsociados(data.asociados);
       if (data.ferreteros) setFerreteros(data.ferreteros);
 
       if (data.meta) {
@@ -127,7 +128,7 @@ export default function AdminDashboard() {
         totalCitas: (data.citas || []).length,
         totalAreas: (data.areas || []).length,
         totalAperturadores: (data.aperturadores || []).length,
-        totalIncorporadores: (data.incorporadores || []).length,
+        totalAsociados: (data.asociados || []).length,
         cotizacionesPendientes: (data.cotizaciones || []).filter(c => c.estado === 'pendiente').length
       });
 
@@ -556,13 +557,13 @@ export default function AdminDashboard() {
     );
   };
 
-  // Funciones para manejar incorporadores
-  const handleConvertToIncorporador = async (userId) => {
+  // Funciones para manejar asociados
+  const handleConvertToAsociado = async (userId) => {
     showConfirm(
-      '¿Estás seguro de que quieres convertir este usuario en Incorporador? Cambiará su rol y podrá incorporar contratistas.',
+      '¿Estás seguro de que quieres convertir este usuario en Asociado? Cambiará su rol y podrá incorporar contratistas.',
       async () => {
         try {
-          const response = await fetch('/api/incorporadores', {
+          const response = await fetch('/api/asociados', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -571,7 +572,7 @@ export default function AdminDashboard() {
           });
 
           if (response.ok) {
-            showSuccess('Usuario convertido a Incorporador exitosamente');
+            showSuccess('Usuario convertido a Asociado exitosamente');
             loadDashboardData();
           } else {
             const error = await response.json();
@@ -581,94 +582,94 @@ export default function AdminDashboard() {
           showError('Error de conexión al convertir usuario');
         }
       },
-      'Convertir a Incorporador'
+      'Convertir a Asociado'
     );
   };
 
-  const handleEditIncorporador = (incorporador) => {
-    setEditingIncorporador(incorporador);
-    setShowEditIncorporadorForm(true);
+  const handleEditAsociado = (asociado) => {
+    setEditingAsociado(asociado);
+    setShowEditAsociadoForm(true);
   };
 
-  const handleUpdateIncorporador = async (incorporadorData) => {
+  const handleUpdateAsociado = async (asociadoData) => {
     try {
-      const response = await fetch('/api/incorporadores', {
+      const response = await fetch('/api/asociados', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(incorporadorData),
+        body: JSON.stringify(asociadoData),
       });
 
       if (response.ok) {
-        showSuccess('Incorporador actualizado exitosamente');
-        setShowEditIncorporadorForm(false);
-        setEditingIncorporador(null);
+        showSuccess('Asociado actualizado exitosamente');
+        setShowEditAsociadoForm(false);
+        setEditingAsociado(null);
         loadDashboardData();
       } else {
         const error = await response.json();
-        showError(error.message || 'Error al actualizar incorporador');
+        showError(error.message || 'Error al actualizar asociado');
       }
     } catch (error) {
-      showError('Error de conexión al actualizar incorporador');
+      showError('Error de conexión al actualizar asociado');
     }
   };
 
-  const handleDeleteIncorporador = async (incorporadorId) => {
+  const handleDeleteAsociado = async (asociadoId) => {
     showConfirm(
-      '¿Estás seguro de que quieres eliminar este incorporador? El usuario volverá a ser cliente.',
+      '¿Estás seguro de que quieres eliminar este asociado? El usuario volverá a ser cliente.',
       async () => {
         try {
-          const response = await fetch(`/api/incorporadores/${incorporadorId}`, {
+          const response = await fetch(`/api/asociados/${asociadoId}`, {
             method: 'DELETE'
           });
 
           if (response.ok) {
-            showSuccess('Incorporador eliminado exitosamente');
+            showSuccess('Asociado eliminado exitosamente');
             loadDashboardData();
           } else {
             const error = await safeJsonParse(response);
-            showError(error?.message || error?.error || 'Error al eliminar incorporador');
+            showError(error?.message || error?.error || 'Error al eliminar asociado');
           }
         } catch (error) {
-          showError('Error de conexión al eliminar incorporador');
+          showError('Error de conexión al eliminar asociado');
         }
       },
-      'Eliminar Incorporador'
+      'Eliminar Asociado'
     );
   };
 
-  const handleToggleIncorporadorStatus = async (incorporadorId, currentStatus) => {
+  const handleToggleAsociadoStatus = async (asociadoId, currentStatus) => {
     const newStatus = !currentStatus;
     const action = newStatus ? 'activar' : 'desactivar';
 
     showConfirm(
-      `¿Estás seguro de que quieres ${action} este incorporador?`,
+      `¿Estás seguro de que quieres ${action} este asociado?`,
       async () => {
         try {
-          const response = await fetch('/api/incorporadores', {
+          const response = await fetch('/api/asociados', {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              incorporadorId,
+              asociadoId,
               activo: newStatus
             }),
           });
 
           if (response.ok) {
-            showSuccess(`Incorporador ${action === 'activar' ? 'activado' : 'desactivado'} exitosamente`);
+            showSuccess(`Asociado ${action === 'activar' ? 'activado' : 'desactivado'} exitosamente`);
             loadDashboardData();
           } else {
             const error = await response.json();
-            showError(error.message || `Error al ${action} incorporador`);
+            showError(error.message || `Error al ${action} asociado`);
           }
         } catch (error) {
-          showError(`Error de conexión al ${action} incorporador`);
+          showError(`Error de conexión al ${action} asociado`);
         }
       },
-      `${action.charAt(0).toUpperCase() + action.slice(1)} Incorporador`
+      `${action.charAt(0).toUpperCase() + action.slice(1)} Asociado`
     );
   };
 
@@ -1319,32 +1320,32 @@ export default function AdminDashboard() {
     );
   };
 
-  const EditIncorporadorForm = () => {
+  const EditAsociadoForm = () => {
     const [formData, setFormData] = useState({
-      incorporadorId: editingIncorporador?._id || '',
-      activo: editingIncorporador?.activo !== false,
-      porcentajeComision: editingIncorporador?.configuracion?.porcentajeComision || 0,
-      observaciones: editingIncorporador?.observaciones || '',
+      asociadoId: editingAsociado?._id || '',
+      activo: editingAsociado?.activo !== false,
+      porcentajeComision: editingAsociado?.configuracion?.porcentajeComision || 0,
+      observaciones: editingAsociado?.observaciones || '',
       notificaciones: {
-        nuevoContratista: editingIncorporador?.configuracion?.notificaciones?.nuevoContratista !== false,
-        reportesSemanal: editingIncorporador?.configuracion?.notificaciones?.reportesSemanal !== false
+        nuevoContratista: editingAsociado?.configuracion?.notificaciones?.nuevoContratista !== false,
+        reportesSemanal: editingAsociado?.configuracion?.notificaciones?.reportesSemanal !== false
       }
     });
 
     const handleSubmit = (e) => {
       e.preventDefault();
-      handleUpdateIncorporador(formData);
+      handleUpdateAsociado(formData);
     };
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Editar Incorporador</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Editar Asociado</h3>
             <button
               onClick={() => {
-                setShowEditIncorporadorForm(false);
-                setEditingIncorporador(null);
+                setShowEditAsociadoForm(false);
+                setEditingAsociado(null);
               }}
               className="text-gray-500 hover:text-gray-700"
             >
@@ -1355,11 +1356,11 @@ export default function AdminDashboard() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Incorporador
+                Asociado
               </label>
               <input
                 type="text"
-                value={editingIncorporador?.user?.nombre || ''}
+                value={editingAsociado?.user?.nombre || ''}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
                 disabled
               />
@@ -1458,15 +1459,15 @@ export default function AdminDashboard() {
               <div className="bg-gray-50 p-3 rounded-md space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Contratistas incorporados:</span>
-                  <span className="font-semibold">{editingIncorporador?.estadisticas?.totalContratistasIncorporados || 0}</span>
+                  <span className="font-semibold">{editingAsociado?.estadisticas?.totalContratistasIncorporados || 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Contratistas activos:</span>
-                  <span className="font-semibold">{editingIncorporador?.estadisticas?.contratistasActivos || 0}</span>
+                  <span className="font-semibold">{editingAsociado?.estadisticas?.contratistasActivos || 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Servicios generados:</span>
-                  <span className="font-semibold">{editingIncorporador?.estadisticas?.serviciosGenerados || 0}</span>
+                  <span className="font-semibold">{editingAsociado?.estadisticas?.serviciosGenerados || 0}</span>
                 </div>
               </div>
             </div>
@@ -1475,8 +1476,8 @@ export default function AdminDashboard() {
               <button
                 type="button"
                 onClick={() => {
-                  setShowEditIncorporadorForm(false);
-                  setEditingIncorporador(null);
+                  setShowEditAsociadoForm(false);
+                  setEditingAsociado(null);
                 }}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
               >
@@ -1552,6 +1553,12 @@ export default function AdminDashboard() {
       count: null
     },
     {
+      key: 'modelo-inicial',
+      label: 'Modelo inicial',
+      icon: <FaChalkboardTeacher />,
+      count: null
+    },
+    {
       key: 'users',
       label: 'Usuarios',
       icon: <FaUsers />,
@@ -1611,10 +1618,10 @@ export default function AdminDashboard() {
       count: aperturadores.length
     },
     {
-      key: 'incorporadores',
-      label: 'Incorporadores',
+      key: 'asociados',
+      label: 'Asociados',
       icon: <FaUsers />,
-      count: incorporadores.length
+      count: asociados.length
     },
     {
       key: 'ferreteros',
@@ -1786,7 +1793,7 @@ export default function AdminDashboard() {
             onDeleteUser={handleDeleteUser}
             onUpdateUser={handleUpdateUser}
             onConvertToAperturador={handleConvertToAperturador}
-            onConvertToIncorporador={handleConvertToIncorporador}
+            onConvertToAsociado={handleConvertToAsociado}
             showError={showError}
             showSuccess={showSuccess}
             showConfirm={showConfirm}
@@ -1814,6 +1821,9 @@ export default function AdminDashboard() {
             showConfirm={showConfirm}
           />
         );
+
+      case 'modelo-inicial':
+        return <ModeloInicialAdmin asociados={asociados} />;
 
       case 'finanzas':
         return <FinanzasDashboard />;
@@ -2535,11 +2545,11 @@ export default function AdminDashboard() {
           </div>
         );
 
-      case 'incorporadores':
+      case 'asociados':
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-900">Gestión de Incorporadores</h2>
+              <h2 className="text-2xl font-bold text-gray-900">Gestión de Asociados</h2>
               <button
                 onClick={loadDashboardData}
                 className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
@@ -2551,18 +2561,18 @@ export default function AdminDashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
-                <div className="text-2xl font-bold text-gray-900">{stats.totalIncorporadores}</div>
-                <div className="text-sm text-gray-600">Total Incorporadores</div>
+                <div className="text-2xl font-bold text-gray-900">{stats.totalAsociados}</div>
+                <div className="text-sm text-gray-600">Total Asociados</div>
               </div>
               <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
                 <div className="text-2xl font-bold text-green-600">
-                  {incorporadores.filter(i => i.activo).length}
+                  {asociados.filter(i => i.activo).length}
                 </div>
                 <div className="text-sm text-gray-600">Activos</div>
               </div>
               <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
                 <div className="text-2xl font-bold text-blue-600">
-                  {incorporadores.reduce((sum, i) => sum + (i.estadisticas?.totalContratistasIncorporados || 0), 0)}
+                  {asociados.reduce((sum, i) => sum + (i.estadisticas?.totalContratistasIncorporados || 0), 0)}
                 </div>
                 <div className="text-sm text-gray-600">Contratistas Incorporados Total</div>
               </div>
@@ -2573,7 +2583,7 @@ export default function AdminDashboard() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Incorporador</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asociado</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contratistas</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Servicios</th>
@@ -2583,82 +2593,82 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {incorporadores.length === 0 ? (
+                    {asociados.length === 0 ? (
                       <tr>
                         <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                           <FaUsers className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                          <p className="text-lg font-medium text-gray-900 mb-2">No hay incorporadores registrados</p>
-                          <p className="text-gray-600">Convierte usuarios a incorporadores desde la sección de Usuarios</p>
+                          <p className="text-lg font-medium text-gray-900 mb-2">No hay asociados registrados</p>
+                          <p className="text-gray-600">Convierte usuarios a asociados desde la sección de Usuarios</p>
                         </td>
                       </tr>
                     ) : (
-                      incorporadores.map((incorporador) => (
-                        <tr key={incorporador._id} className="hover:bg-gray-50">
+                      asociados.map((asociado) => (
+                        <tr key={asociado._id} className="hover:bg-gray-50">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
                               <div>
                                 <div className="text-sm font-medium text-gray-900">
-                                  {incorporador.user?.nombre || 'N/A'}
+                                  {asociado.user?.nombre || 'N/A'}
                                 </div>
                                 <div className="text-xs text-gray-500">
-                                  {incorporador.user?.email || 'N/A'}
+                                  {asociado.user?.email || 'N/A'}
                                 </div>
                                 <div className="text-xs text-gray-500">
-                                  {incorporador.user?.telefono || 'N/A'}
+                                  {asociado.user?.telefono || 'N/A'}
                                 </div>
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <button
-                              onClick={() => handleToggleIncorporadorStatus(incorporador._id, incorporador.activo)}
-                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full transition-colors ${incorporador.activo
+                              onClick={() => handleToggleAsociadoStatus(asociado._id, asociado.activo)}
+                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full transition-colors ${asociado.activo
                                 ? 'bg-green-100 text-green-800 hover:bg-green-200'
                                 : 'bg-red-100 text-red-800 hover:bg-red-200'
                                 }`}
                             >
-                              {incorporador.activo ? 'Activo' : 'Inactivo'}
+                              {asociado.activo ? 'Activo' : 'Inactivo'}
                             </button>
                           </td>
                           <td className="px-6 py-4">
                             <div className="space-y-1">
                               <div className="text-sm font-semibold text-gray-900">
-                                {incorporador.estadisticas?.totalContratistasIncorporados || 0}
+                                {asociado.estadisticas?.totalContratistasIncorporados || 0}
                               </div>
                               <div className="text-xs text-gray-500">
-                                Activos: {incorporador.estadisticas?.contratistasActivos || 0}
+                                Activos: {asociado.estadisticas?.contratistasActivos || 0}
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="text-sm text-gray-900">
-                              {incorporador.estadisticas?.serviciosGenerados || 0}
+                              {asociado.estadisticas?.serviciosGenerados || 0}
                             </div>
                             <div className="text-xs text-gray-500">
-                              Ingresos: ${incorporador.estadisticas?.ingresosGenerados || 0}
+                              Ingresos: ${asociado.estadisticas?.ingresosGenerados || 0}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
-                              {incorporador.configuracion?.porcentajeComision || 0}%
+                              {asociado.configuracion?.porcentajeComision || 0}%
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                            {incorporador.createdAt ? formatDate(incorporador.createdAt) : 'N/A'}
+                            {asociado.createdAt ? formatDate(asociado.createdAt) : 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
                               <button
-                                onClick={() => handleEditIncorporador(incorporador)}
+                                onClick={() => handleEditAsociado(asociado)}
                                 className="text-indigo-600 hover:text-indigo-900 p-1 rounded transition-colors"
-                                title="Editar incorporador"
+                                title="Editar asociado"
                               >
                                 <FaEdit size={14} />
                               </button>
                               <button
-                                onClick={() => handleDeleteIncorporador(incorporador._id)}
+                                onClick={() => handleDeleteAsociado(asociado._id)}
                                 className="text-red-600 hover:text-red-900 p-1 rounded transition-colors"
-                                title="Eliminar incorporador"
+                                title="Eliminar asociado"
                               >
                                 <FaTrash size={14} />
                               </button>
@@ -2672,17 +2682,17 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {incorporadores.length > 0 && (
+            {asociados.length > 0 && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <FaUsers className="text-blue-600 mt-1" size={20} />
                   <div>
                     <h3 className="text-sm font-semibold text-blue-900 mb-1">
-                      Convertir usuarios a Incorporadores
+                      Convertir usuarios a Asociados
                     </h3>
                     <p className="text-sm text-blue-700">
-                      Ve a la sección de Usuarios y selecciona un usuario para convertirlo en Incorporador.
-                      Los incorporadores podrán registrar y gestionar contratistas en el sistema.
+                      Ve a la sección de Usuarios y selecciona un usuario para convertirlo en Asociado.
+                      Los asociados podrán registrar y gestionar contratistas en el sistema.
                     </p>
                   </div>
                 </div>
@@ -2874,7 +2884,7 @@ export default function AdminDashboard() {
       )}
       {showEditAreaForm && <EditAreaForm />}
       {showEditAperturadorForm && <EditAperturadorForm />}
-      {showEditIncorporadorForm && <EditIncorporadorForm />}
+      {showEditAsociadoForm && <EditAsociadoForm />}
 
       {/* Delimitador de Áreas */}
       {showDelimitadorAreas && (

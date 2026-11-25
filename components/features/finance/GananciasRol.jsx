@@ -1,5 +1,5 @@
 'use client';
-// Resumen de ganancias de cualquier rol (aperturador, incorporador, técnico, contratista) con GET /api/ganancias.
+// Resumen de ganancias de cualquier rol (aperturador, asociado, técnico, contratista) con GET /api/ganancias.
 // El servidor toma el rol y el id del token; aquí solo se elige el periodo.
 import { useState, useEffect } from 'react';
 import { FaMoneyBillWave } from 'react-icons/fa';
@@ -10,7 +10,7 @@ const PERIODOS = [['dia', 'Hoy'], ['semana', '7 días'], ['mes', '30 días'], ['
 // Qué se muestra de cada transacción según el rol
 const DETALLE = {
   aperturador: (t) => `Zona: ${t.zona || '—'} · ${t.servicio}`,
-  incorporador: (t) => `Contratista: ${t.contratista || '—'} · ${t.servicio}`,
+  asociado: (t) => `Contratista: ${t.contratista || '—'} · ${t.servicio}`,
   tecnico: (t) => `${t.servicio} · ${t.estadoLiberacion === 'liberada' ? 'liberada' : 'por liberar'}`,
   contratista: (t) => `${t.servicio} · ${t.cliente}`
 };

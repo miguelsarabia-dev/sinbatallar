@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { decidirAcceso } from '@/lib/policy';
+import { normalizarRol } from '@/lib/roles';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || ''
@@ -31,7 +32,7 @@ function addCorsHeaders(request, response) {
 }
 
 // Rutas protegidas y públicas
-const protectedRoutes = ['/main', '/admin', '/contratista', '/aperturador', '/incorporador', '/ferretero', '/tecnico'];
+const protectedRoutes = ['/main', '/admin', '/contratista', '/aperturador', '/asociado', '/especialista', '/aspirante', '/ferretero', '/tecnico'];
 const publicRoutes = ['/', '/login', '/register', '/politicas-de-privacidad', '/terminos-y-condiciones', '/api/auth/login', '/api/auth/register'];
 
 async function verifyTokenMiddleware(token) {
@@ -60,7 +61,7 @@ export async function middleware(request) {
 
     const payload = token ? await verifyTokenMiddleware(token) : null;
     const role = payload ? (payload.role || payload.userType) : null;
-    const normalizado = role === 'user' ? 'cliente' : role;
+    const normalizado = normalizarRol(role);
 
     const estado = decidirAcceso(request.method, pathname, request.nextUrl.searchParams, normalizado);
 
@@ -71,6 +72,11 @@ export async function middleware(request) {
       return addCorsHeaders(request, NextResponse.json({ error: 'No autorizado' }, { status: 403 }));
     }
     return addCorsHeaders(request, NextResponse.next());
+  }
+
+  // Panel con el nombre anterior del rol: /incorporador -> /asociado (enlaces y marcadores viejos)
+  if (pathname === '/incorporador' || pathname.startsWith('/incorporador/')) {
+    return NextResponse.redirect(new URL(pathname.replace(/^\/incorporador/, '/asociado'), request.url));
   }
 
   // Rutas públicas - permitir siempre
@@ -127,7 +133,7 @@ export async function middleware(request) {
     return response;
   }
 
-  const userRole = payload.role || payload.userType;
+  const userRole = normalizarRol(payload.role || payload.userType);
   // Admin puede acceder a todo
   if (userRole === 'admin') {
     return NextResponse.next();
@@ -142,8 +148,17 @@ export async function middleware(request) {
     return NextResponse.redirect(new URL('/aperturador', request.url));
   }
 
-  if (userRole === 'incorporador' && !pathname.startsWith('/incorporador')) {
-    return NextResponse.redirect(new URL('/incorporador', request.url));
+  if (userRole === 'asociado' && !pathname.startsWith('/asociado')) {
+    return NextResponse.redirect(new URL('/asociado', request.url));
+  }
+
+  // Modelo inicial
+  if (userRole === 'especialista' && !pathname.startsWith('/especialista')) {
+    return NextResponse.redirect(new URL('/especialista', request.url));
+  }
+
+  if (userRole === 'aspirante' && !pathname.startsWith('/aspirante')) {
+    return NextResponse.redirect(new URL('/aspirante', request.url));
   }
 
   if (userRole === 'ferretero' && !pathname.startsWith('/ferretero')) {
@@ -176,7 +191,9 @@ function redirectByRole(role, request) {
   const redirectMap = {
     'contratista': '/contratista/dashboard',
     'aperturador': '/aperturador',
-    'incorporador': '/incorporador',
+    'asociado': '/asociado',
+    'especialista': '/especialista',
+    'aspirante': '/aspirante',
     'ferretero': '/ferretero',
     'tecnico': '/tecnico',
     'cliente': '/main/servicios-programables',
@@ -194,7 +211,10 @@ export const config = {
     '/admin/:path*',
     '/contratista/:path*',
     '/aperturador/:path*',
+    '/asociado/:path*',
     '/incorporador/:path*',
+    '/especialista/:path*',
+    '/aspirante/:path*',
     '/ferretero/:path*',
     '/tecnico/:path*'
   ]

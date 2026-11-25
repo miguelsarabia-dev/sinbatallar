@@ -11,9 +11,9 @@ const contratistaSchema = new mongoose.Schema({
   notas: { type: String, trim: true },
   password: { type: String, required: true },
   servicios: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Servicio' }],
-  incorporador: {
+  asociado: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Incorporador',
+    ref: 'Asociado',
     default: null
   },
   ubicacion: {
@@ -27,13 +27,13 @@ const contratistaSchema = new mongoose.Schema({
     ref: 'Area',
     default: null
   },
-  // Zonas asignadas por el incorporador/admin (máx. 5). El contratista solo las ve.
+  // Zonas asignadas por el asociado/admin (máx. 5). El contratista solo las ve.
   areasIds: {
     type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Area' }],
     default: [],
     validate: { validator: (v) => v.length <= 5, message: 'Un contratista puede tener máximo 5 zonas' }
   },
-  // aprobado: la cuenta fue validada (admin o su incorporador). Hasta entonces no recibe solicitudes.
+  // aprobado: la cuenta fue validada (admin o su asociado). Hasta entonces no recibe solicitudes.
   aprobado: { type: Boolean, default: false },
   suspendido: { type: Boolean, default: false },
   motivoSuspension: { type: String, trim: true },
@@ -49,7 +49,14 @@ const contratistaSchema = new mongoose.Schema({
     nombreTitular: { type: String, trim: true }
   },
   promedioCalificacion: { type: Number, default: 0, min: 0, max: 5 },
-  totalCalificaciones: { type: Number, default: 0 }
+  totalCalificaciones: { type: Number, default: 0 },
+  // Si viene del modelo inicial: de qué rol y perfil ascendió (el admin lo registra tras el examen)
+  origen: {
+    rol: { type: String, enum: ['especialista', 'aspirante'] },
+    perfil: { type: mongoose.Schema.Types.ObjectId },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    fecha: { type: Date }
+  }
 }, {
   timestamps: true
 });
@@ -57,7 +64,7 @@ const contratistaSchema = new mongoose.Schema({
 // Índices (email ya tiene índice por unique: true)
 contratistaSchema.index({ activo: 1 });
 contratistaSchema.index({ estatus: 1 });
-contratistaSchema.index({ incorporador: 1 });
+contratistaSchema.index({ asociado: 1 });
 
 // El password (hash) nunca sale en una respuesta JSON.
 contratistaSchema.set('toJSON', {

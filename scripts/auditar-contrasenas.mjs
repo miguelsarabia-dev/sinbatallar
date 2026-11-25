@@ -1,6 +1,6 @@
 // scripts/auditar-contrasenas.mjs
 // SOLO LECTURA. Lista los contratistas cuya contraseña es, en realidad, un dato personal suyo (su CURP, su teléfono
-// o su correo). Hasta ahora POST /contratistas (alta por el incorporador) guardaba el CURP como contraseña.
+// o su correo). Hasta ahora POST /contratistas (alta por el asociado) guardaba el CURP como contraseña.
 // Nunca escribe, nunca imprime contraseñas ni hashes.
 //
 // Uso:  MONGODB_URI="mongodb://..." node scripts/auditar-contrasenas.mjs

@@ -1,7 +1,7 @@
 // app/api/incorporaciones/[id]/documentos/route.js (id = _id del contratista)
 // Evidencia OPCIONAL (el estado de la incorporación depende de los datos escritos, no de estos archivos).
 // POST multipart: tipo (ine|curp|comprobante_domicilio|otro) + archivo (campo `archivo`, `documento`, `imagen` o `file`),
-//   imagen o PDF ≤ 8 MB. GET: lista con URL firmada temporal (10 min). Solo incorporador dueño o admin.
+//   imagen o PDF ≤ 8 MB. GET: lista con URL firmada temporal (10 min). Solo asociado dueño o admin.
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import DocumentoIncorporacion from '@/models/DocumentoIncorporacion';
@@ -28,7 +28,7 @@ const serializar = (d) => ({
 export async function GET(request, { params }) {
   try {
     await connectDB();
-    const { session, error } = await requireSession(request, ['incorporador', 'admin']);
+    const { session, error } = await requireSession(request, ['asociado', 'admin']);
     if (error) return error;
 
     const { id } = await params;
@@ -45,7 +45,7 @@ export async function GET(request, { params }) {
 export async function POST(request, { params }) {
   try {
     await connectDB();
-    const { session, error } = await requireSession(request, ['incorporador', 'admin']);
+    const { session, error } = await requireSession(request, ['asociado', 'admin']);
     if (error) return error;
 
     const { id } = await params;

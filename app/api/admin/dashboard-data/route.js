@@ -7,7 +7,7 @@ import Cotizacion from '@/models/Cotizacion';
 import Cita from '@/models/Cita';
 import Area from '@/models/Area';
 import Aperturador from '@/models/Aperturador';
-import Incorporador from '@/models/Incorporador';
+import Asociado from '@/models/Asociado';
 import Ferretero from '@/models/Ferretero';
 
 // GET - Obtener todos los datos del dashboard en una sola llamada optimizada
@@ -27,7 +27,7 @@ export async function GET() {
             citas,
             areas,
             aperturadores,
-            incorporadores,
+            asociados,
             ferreteros
         ] = await Promise.all([
             // 1. Usuarios (Solo campos necesarios para lista y contadores)
@@ -72,8 +72,8 @@ export async function GET() {
                 .populate('user', 'nombre email telefono')
                 .lean(),
 
-            // 8. Incorporadores
-            Incorporador.find({})
+            // 8. Asociados
+            Asociado.find({})
                 .select('user activo estadisticas configuracion createdAt')
                 .populate('user', 'nombre email telefono')
                 .lean(),
@@ -96,7 +96,7 @@ export async function GET() {
             citas,
             areas,
             aperturadores,
-            incorporadores,
+            asociados,
             ferreteros,
             meta: {
                 loadTime: endTime - startTime,

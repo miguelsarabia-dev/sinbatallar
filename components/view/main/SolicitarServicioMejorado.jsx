@@ -965,12 +965,15 @@ const SolicitarServicioMejoradoContent = () => {
               })()}
             </div>
 
-            {/* Fecha y hora preferidas */}
+            {/* Día y hora de la VISITA para cotizar (el día del trabajo se acuerda después de la cotización) */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
+              <strong>Esta fecha es para que vayan a cotizarte.</strong> Un especialista irá a tu domicilio ese día para revisar el trabajo y darte el precio, sin costo. El día en que empiezan a trabajar lo acuerdan después, cuando aceptes la cotización.
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <FaCalendarAlt className="inline mr-2" />
-                  Fecha preferida *
+                  Día de la visita para cotizar *
                 </label>
                 <input
                   type="date"
@@ -981,13 +984,13 @@ const SolicitarServicioMejoradoContent = () => {
                   required
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  El contratista puede sugerir otros horarios disponibles
+                  Quien te atienda puede proponerte otro horario
                 </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <FaClock className="inline mr-2" />
-                  Hora preferida *
+                  Hora de la visita *
                 </label>
                 <select
                   value={formData.horaPreferida}

@@ -1,5 +1,5 @@
 // POST /api/contratistas/solicitud
-// Registro público — queda con estatus 'pendiente' hasta que un incorporador lo acepte
+// Antes registro público; ya no hay auto-registro (solo clientes se registran solos): en lib/policy.js solo admin
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Contratista from '@/models/Contratista';
@@ -70,7 +70,7 @@ export async function POST(request) {
         lng: ubicacion.lng,
         direccion: ubicacion.direccion || direccion.trim()
       },
-      incorporador: null,
+      asociado: null,
       aprobado: false,
       activo: false,
       estatus: 'pendiente'
@@ -80,7 +80,7 @@ export async function POST(request) {
       .catch(err => console.error('Error enviando email bienvenida contratista:', err));
 
     return NextResponse.json(
-      { message: 'Solicitud enviada. Un incorporador revisará y activará tu cuenta.' },
+      { message: 'Solicitud enviada. Un asociado revisará y activará tu cuenta.' },
       { status: 201 }
     );
   } catch (error) {

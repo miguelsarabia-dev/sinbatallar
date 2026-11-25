@@ -47,7 +47,7 @@ export async function GET(request) {
           cobrado: suma('$totalServicio'), base: suma('$subtotal'), iva: suma('$iva'),
           plataforma: suma('$distribucion.plataforma.monto'), contratistas: suma('$distribucion.contratista.montoTotal'),
           tecnicos: suma('$distribucion.tecnico.monto'), aperturadores: suma('$distribucion.aperturador.monto'),
-          incorporadores: suma('$distribucion.incorporador.monto')
+          asociados: suma('$distribucion.asociado.monto')
         } }
       ]),
       Contratista.countDocuments({ aprobado: true, activo: true }),
@@ -95,7 +95,7 @@ export async function GET(request) {
       ingresos: { cobrado: redondear(c.cobrado), base: redondear(c.base), iva: redondear(c.iva) },
       comisiones: {
         plataforma: redondear(c.plataforma), contratistas: redondear(c.contratistas), tecnicos: redondear(c.tecnicos),
-        aperturadores: redondear(c.aperturadores), incorporadores: redondear(c.incorporadores)
+        aperturadores: redondear(c.aperturadores), asociados: redondear(c.asociados)
       },
       contratistasActivos,
       tecnicosActivos,

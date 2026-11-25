@@ -1,4 +1,4 @@
-// GET /api/incorporaciones/:id (id = _id del contratista): detalle de una incorporación. Incorporador dueño o admin.
+// GET /api/incorporaciones/:id (id = _id del contratista): detalle de una incorporación. Asociado dueño o admin.
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import DocumentoIncorporacion from '@/models/DocumentoIncorporacion';
@@ -9,7 +9,7 @@ import { estadoIncorporacion, contratistaGestionable, datosIncorporacion } from 
 export async function GET(request, { params }) {
   try {
     await connectDB();
-    const { session, error } = await requireSession(request, ['incorporador', 'admin']);
+    const { session, error } = await requireSession(request, ['asociado', 'admin']);
     if (error) return error;
 
     const { id } = await params;

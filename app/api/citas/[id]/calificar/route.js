@@ -5,6 +5,7 @@ import Cita from '@/models/Cita';
 import Contratista from '@/models/Contratista';
 import Calificacion from '@/models/Calificacion';
 import Tecnico from '@/models/Tecnico';
+import Especialista from '@/models/Especialista';
 import { requireSession } from '@/lib/session';
 
 export async function PUT(request, { params }) {
@@ -103,6 +104,25 @@ export async function PUT(request, { params }) {
       }
     }
 
+    // Modelo inicial: la calificación principal es para el especialista que atendió
+    let especialistaCalificado = false;
+    if (cita.especialista && !cita.calificadoEspecialista) {
+      await new Calificacion({
+        cita: cita._id,
+        cliente: clienteId,
+        calificado: cita.especialista,
+        tipoCalificado: 'Especialista',
+        puntaje: parseInt(puntajeContratista),
+        comentario: comentarioContratista?.trim() || ''
+      }).save();
+      const delEspecialista = await Calificacion.find({ calificado: cita.especialista, tipoCalificado: 'Especialista', oculta: { $ne: true } }).select('puntaje');
+      await Especialista.updateOne({ _id: cita.especialista }, {
+        promedioCalificacion: delEspecialista.reduce((acc, c) => acc + c.puntaje, 0) / delEspecialista.length,
+        totalCalificaciones: delEspecialista.length
+      });
+      especialistaCalificado = true;
+    }
+
     // Actualizar flags en la cita
     // Calificación del técnico (opcional): una sola vez por cita
     let tecnicoCalificado = false;
@@ -131,7 +151,8 @@ export async function PUT(request, { params }) {
       {
         $set: {
           calificadoContratista: true,
-          ...(tecnicoCalificado ? { calificadoTecnico: true } : {})
+          ...(tecnicoCalificado ? { calificadoTecnico: true } : {}),
+          ...(especialistaCalificado ? { calificadoEspecialista: true } : {})
         }
       },
       { new: true }

@@ -1,5 +1,5 @@
 'use client';
-// Zonas de cobertura de un contratista: varias, máximo 5. Solo las asigna el incorporador/admin.
+// Zonas de cobertura de un contratista: varias, máximo 5. Solo las asigna el asociado/admin.
 import { useEffect, useState } from 'react';
 import { ChipsSeleccion } from './ChipsServicios';
 

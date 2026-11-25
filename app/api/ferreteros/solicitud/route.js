@@ -1,5 +1,5 @@
 // POST /api/ferreteros/solicitud
-// Registro público de ferretero — queda pendiente hasta aprobación del admin
+// Antes registro público de ferretero; ya no hay auto-registro: en lib/policy.js solo admin
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Ferretero from '@/models/Ferretero';

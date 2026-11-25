@@ -1,19 +1,20 @@
 import { errorPasswordAlta, passwordEsDatoPersonal } from '@/lib/password-alta';
 import { connectDB } from '@/lib/mongoose'
 import Contratista from '@/models/Contratista'
-import Incorporador from '@/models/Incorporador'
+import Asociado from '@/models/Asociado'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 import { enviarEmailBienvenidaContratista } from '@/lib/email-service'
 import { requireSession, getSessionFromRequest } from '@/lib/session'
 import { esObjectId, pick, soloTexto } from '@/lib/sanitize'
-import { relacionCon, camposPara, incorporadorDe, aplicarReglasAprobacion, SELECT_PUBLICO } from '@/lib/contratista-acceso'
+import { relacionCon, camposPara, asociadoDe, aplicarReglasAprobacion, SELECT_PUBLICO } from '@/lib/contratista-acceso'
 import { permisoCambioZona, permisoCambioServicios } from '@/lib/datos-incorporacion'
 import { validarServicios } from '@/lib/servicios-contratista'
 import { validarZonas, zonasDeBody, zonasDe, sincronizarAreas } from '@/lib/zona-contratista'
+import { asociadoIdDe } from '@/lib/roles'
 
 // GET: Listar todos los contratistas o uno por ID
-// Query: ?id=  ?incorporadorId=  ?sinIncorporador=true  ?estatus=pendiente|activo|rechazado|suspendido
+// Query: ?id=  ?asociadoId=  ?sinAsociado=true  ?estatus=pendiente|activo|rechazado|suspendido
 export async function GET(request) {
   await connectDB();
   const { session, error } = await requireSession(request);
@@ -21,14 +22,14 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
-  const sinIncorporador = searchParams.get('sinIncorporador');
+  const sinAsociado = searchParams.get('sinAsociado');
   const estatus = soloTexto(searchParams.get('estatus'));
 
   if (id) {
     if (!esObjectId(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
     const contratista = await Contratista.findById(id)
       .populate('servicios', 'nombre descripcion categoria')
-      .populate('incorporador');
+      .populate('asociado');
     if (!contratista) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
     if (!(await relacionCon(session, contratista))) {
       const publico = await Contratista.findById(id).select(SELECT_PUBLICO).populate('servicios', 'nombre categoria');
@@ -37,25 +38,25 @@ export async function GET(request) {
     return NextResponse.json(contratista);
   }
 
-  // Listado completo: admin, o incorporador (sus contratistas y los que aún no tienen incorporador).
-  if (!['admin', 'incorporador'].includes(session.role)) {
+  // Listado completo: admin, o asociado (sus contratistas y los que aún no tienen asociado).
+  if (!['admin', 'asociado'].includes(session.role)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
   const filtro = {};
-  if (session.role === 'incorporador') {
-    const incId = await incorporadorDe(session);
-    if (sinIncorporador === 'true') {
-      filtro.$or = [{ incorporador: null }, { incorporador: { $exists: false } }];
+  if (session.role === 'asociado') {
+    const incId = await asociadoDe(session);
+    if (sinAsociado === 'true') {
+      filtro.$or = [{ asociado: null }, { asociado: { $exists: false } }];
     } else {
-      filtro.incorporador = incId;
+      filtro.asociado = incId;
     }
   } else {
-    const incorporadorId = searchParams.get('incorporadorId');
-    if (esObjectId(incorporadorId)) {
-      filtro.incorporador = incorporadorId;
-    } else if (sinIncorporador === 'true') {
-      filtro.$or = [{ incorporador: null }, { incorporador: { $exists: false } }];
+    const asociadoId = asociadoIdDe(searchParams);
+    if (esObjectId(asociadoId)) {
+      filtro.asociado = asociadoId;
+    } else if (sinAsociado === 'true') {
+      filtro.$or = [{ asociado: null }, { asociado: { $exists: false } }];
     }
   }
 
@@ -64,34 +65,35 @@ export async function GET(request) {
   const contratistas = await Contratista.find(filtro)
     .select('-password')
     .populate('servicios', 'nombre descripcion categoria')
-    .populate('incorporador')
+    .populate('asociado')
     .sort({ createdAt: -1 });
 
   return NextResponse.json(contratistas);
 }
 
-// POST /api/contratistas — el incorporador registra un contratista
-// Body JSON: { nombre, email, telefono, curp, password, incorporadorId, especialidad?, direccion?, notas? }
-// `password` es la contraseña temporal que el incorporador le entrega al contratista (obligatoria, mín. 6).
+// POST /api/contratistas — el asociado registra un contratista
+// Body JSON: { nombre, email, telefono, curp, password, asociadoId, especialidad?, direccion?, notas? }
+// `password` es la contraseña temporal que el asociado le entrega al contratista (obligatoria, mín. 6).
 export async function POST(req) {
   await connectDB();
 
-  // Auto-registro público permitido, pero sin privilegios: solo admin/incorporador lo dejan activo.
+  // Ya no es público (lib/policy.js): solo el asociado o el admin dan de alta contratistas.
   const session = await getSessionFromRequest(req);
   const body = await req.json();
-  const { nombre, email, telefono, curp, password, especialidad, direccion, notas, incorporadorId, servicios } = body;
-  for (const v of [nombre, email, telefono, curp, especialidad, direccion, notas, incorporadorId]) {
+  const { nombre, email, telefono, curp, password, especialidad, direccion, notas, servicios } = body;
+  const asociadoId = asociadoIdDe(body); // la app móvil instalada aún manda incorporadorId
+  for (const v of [nombre, email, telefono, curp, especialidad, direccion, notas, asociadoId]) {
     if (v !== undefined && typeof v !== 'string') {
       return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
     }
   }
-  if (incorporadorId !== undefined && !esObjectId(incorporadorId)) {
-    return NextResponse.json({ error: 'incorporadorId inválido' }, { status: 400 });
+  if (asociadoId !== undefined && !esObjectId(asociadoId)) {
+    return NextResponse.json({ error: 'asociadoId inválido' }, { status: 400 });
   }
 
-  if (!nombre || !email || !telefono || !curp || !incorporadorId) {
+  if (!nombre || !email || !telefono || !curp || !asociadoId) {
     return NextResponse.json(
-      { error: 'Campos requeridos: nombre, email, telefono, curp, incorporadorId' },
+      { error: 'Campos requeridos: nombre, email, telefono, curp, asociadoId' },
       { status: 400 }
     );
   }
@@ -109,9 +111,9 @@ export async function POST(req) {
     return NextResponse.json({ error: 'La contraseña no puede ser igual al CURP, teléfono o correo' }, { status: 400 });
   }
 
-  const incorporador = await Incorporador.findById(incorporadorId);
-  if (!incorporador) {
-    return NextResponse.json({ error: 'Incorporador no encontrado' }, { status: 404 });
+  const asociado = await Asociado.findById(asociadoId);
+  if (!asociado) {
+    return NextResponse.json({ error: 'Asociado no encontrado' }, { status: 404 });
   }
 
   const existe = await Contratista.findOne({ email: email.toLowerCase().trim() });
@@ -119,29 +121,29 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Ya existe un contratista registrado con ese email' }, { status: 409 });
   }
 
-  const propioIncorporador = session?.role === 'incorporador' && String(await incorporadorDe(session)) === String(incorporador._id);
-  const autorizadoActivar = session?.role === 'admin' || propioIncorporador;
+  const propioAsociado = session?.role === 'asociado' && String(await asociadoDe(session)) === String(asociado._id);
+  const autorizadoActivar = session?.role === 'admin' || propioAsociado;
 
-  // Zonas (máx. 5): solo las puede asignar el admin o el incorporador dueño; un auto-registro no trae zonas
+  // Zonas (máx. 5): solo las puede asignar el admin o el asociado dueño; un auto-registro no trae zonas
   let zonasAlta = { areasIds: [], areaId: null };
   const zonasPedidasAlta = zonasDeBody(body);
   if (zonasPedidasAlta !== undefined) {
-    if (!autorizadoActivar) return NextResponse.json({ error: 'La zona la asigna tu incorporador' }, { status: 403 });
+    if (!autorizadoActivar) return NextResponse.json({ error: 'La zona la asigna tu asociado' }, { status: 403 });
     const zonas = await validarZonas(zonasPedidasAlta);
     if (!zonas.ok) return NextResponse.json({ error: zonas.error }, { status: zonas.status });
     zonasAlta = zonas;
   }
 
-  // Servicios (los elige quien da de alta: admin o incorporador dueño); la especialidad se deriva de ellos
+  // Servicios (los elige quien da de alta: admin o asociado dueño); la especialidad se deriva de ellos
   let serviciosAlta = { servicios: [], nombres: [] };
   if (servicios !== undefined) {
-    if (!autorizadoActivar) return NextResponse.json({ error: 'Los servicios los asigna tu incorporador' }, { status: 403 });
+    if (!autorizadoActivar) return NextResponse.json({ error: 'Los servicios los asigna tu asociado' }, { status: 403 });
     const serv = await validarServicios(servicios);
     if (!serv.ok) return NextResponse.json({ error: serv.error }, { status: serv.status });
     serviciosAlta = serv;
   }
 
-  // Contraseña temporal que dio el incorporador/admin (nunca derivada del CURP)
+  // Contraseña temporal que dio el asociado/admin (nunca derivada del CURP)
   const passwordTemporal = await bcrypt.hash(password, 12);
 
   const nuevoContratista = await Contratista.create({
@@ -154,10 +156,10 @@ export async function POST(req) {
     direccion: direccion?.trim() || '',
     notas: notas?.trim() || '',
     password: passwordTemporal,
-    incorporador: incorporador._id,
+    asociado: asociado._id,
     areasIds: zonasAlta.areasIds,
     areaId: zonasAlta.areaId,
-    // Aprobación: solo la da un admin (alta directa). Si lo crea el incorporador queda en revisión hasta aprobarlo.
+    // Aprobación: solo la da un admin (alta directa). Si lo crea el asociado queda en revisión hasta aprobarlo.
     aprobado: session?.role === 'admin',
     activo: session?.role === 'admin',
     estatus: 'pendiente',
@@ -168,13 +170,13 @@ export async function POST(req) {
 
   if (zonasAlta.areasIds.length) await sincronizarAreas(nuevoContratista._id, [], zonasAlta.areasIds);
 
-  incorporador.contratistasIncorporados.push(nuevoContratista._id);
-  incorporador.estadisticas.totalContratistasIncorporados = incorporador.contratistasIncorporados.length;
-  incorporador.estadisticas.contratistasActivos = await Contratista.countDocuments({
-    incorporador: incorporador._id,
+  asociado.contratistasIncorporados.push(nuevoContratista._id);
+  asociado.estadisticas.totalContratistasIncorporados = asociado.contratistasIncorporados.length;
+  asociado.estadisticas.contratistasActivos = await Contratista.countDocuments({
+    asociado: asociado._id,
     activo: true
   });
-  await incorporador.save();
+  await asociado.save();
 
   return NextResponse.json(
     { message: 'Contratista registrado exitosamente', contratista: { _id: nuevoContratista._id, nombre: nuevoContratista.nombre, email: nuevoContratista.email, estatus: nuevoContratista.estatus } },
@@ -202,10 +204,10 @@ export async function PUT(req) {
       return NextResponse.json({ error: 'Contratista no encontrado' }, { status: 404 });
     }
 
-    // Solo admin, el propio contratista o su incorporador, cada uno con sus campos permitidos
+    // Solo admin, el propio contratista o su asociado, cada uno con sus campos permitidos
     const relacion = await relacionCon(session, contratistaActual);
     if (!relacion) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-    // La zona la asigna el incorporador (o el admin): si el contratista la manda, 403 explícito, no se ignora
+    // La zona la asigna el asociado (o el admin): si el contratista la manda, 403 explícito, no se ignora
     const permisoZona = permisoCambioZona(relacion, zonasDeBody(body));
     if (!permisoZona.ok) return NextResponse.json({ error: permisoZona.error }, { status: permisoZona.status });
     const permisoServ = permisoCambioServicios(relacion, body.servicios);
@@ -246,62 +248,62 @@ export async function PUT(req) {
       await sincronizarAreas(data._id, zonasDe(contratistaActual), data.areasIds);
     }
 
-    // Si cambió el incorporador, actualizar estadísticas
-    if (data.incorporador !== undefined && data.incorporador !== contratistaActual.incorporador?.toString()) {
-      // Quitar del incorporador anterior
-      if (contratistaActual.incorporador) {
+    // Si cambió el asociado, actualizar estadísticas
+    if (data.asociado !== undefined && data.asociado !== contratistaActual.asociado?.toString()) {
+      // Quitar del asociado anterior
+      if (contratistaActual.asociado) {
         try {
-          const incorporadorAnterior = await Incorporador.findById(contratistaActual.incorporador);
-          if (incorporadorAnterior) {
-            incorporadorAnterior.contratistasIncorporados = incorporadorAnterior.contratistasIncorporados.filter(
+          const asociadoAnterior = await Asociado.findById(contratistaActual.asociado);
+          if (asociadoAnterior) {
+            asociadoAnterior.contratistasIncorporados = asociadoAnterior.contratistasIncorporados.filter(
               id => id.toString() !== data._id
             );
-            incorporadorAnterior.estadisticas.totalContratistasIncorporados = incorporadorAnterior.contratistasIncorporados.length;
-            incorporadorAnterior.estadisticas.contratistasActivos = await Contratista.countDocuments({
-              incorporador: contratistaActual.incorporador,
+            asociadoAnterior.estadisticas.totalContratistasIncorporados = asociadoAnterior.contratistasIncorporados.length;
+            asociadoAnterior.estadisticas.contratistasActivos = await Contratista.countDocuments({
+              asociado: contratistaActual.asociado,
               activo: true
             });
-            await incorporadorAnterior.save();
+            await asociadoAnterior.save();
           }
         } catch (error) {
-          console.error('Error actualizando incorporador anterior:', error);
+          console.error('Error actualizando asociado anterior:', error);
         }
       }
 
-      // Agregar al nuevo incorporador
-      if (data.incorporador) {
+      // Agregar al nuevo asociado
+      if (data.asociado) {
         try {
-          const incorporadorNuevo = await Incorporador.findById(data.incorporador);
-          if (incorporadorNuevo) {
-            if (!incorporadorNuevo.contratistasIncorporados.includes(data._id)) {
-              incorporadorNuevo.contratistasIncorporados.push(data._id);
+          const asociadoNuevo = await Asociado.findById(data.asociado);
+          if (asociadoNuevo) {
+            if (!asociadoNuevo.contratistasIncorporados.includes(data._id)) {
+              asociadoNuevo.contratistasIncorporados.push(data._id);
             }
-            incorporadorNuevo.estadisticas.totalContratistasIncorporados = incorporadorNuevo.contratistasIncorporados.length;
-            incorporadorNuevo.estadisticas.contratistasActivos = await Contratista.countDocuments({
-              incorporador: data.incorporador,
+            asociadoNuevo.estadisticas.totalContratistasIncorporados = asociadoNuevo.contratistasIncorporados.length;
+            asociadoNuevo.estadisticas.contratistasActivos = await Contratista.countDocuments({
+              asociado: data.asociado,
               activo: true
             });
-            await incorporadorNuevo.save();
+            await asociadoNuevo.save();
           }
         } catch (error) {
-          console.error('Error actualizando incorporador nuevo:', error);
+          console.error('Error actualizando asociado nuevo:', error);
         }
       }
     }
 
-    // Si cambió el estado activo, actualizar estadísticas del incorporador
-    if (data.activo !== undefined && data.activo !== contratistaActual.activo && contratistaActual.incorporador) {
+    // Si cambió el estado activo, actualizar estadísticas del asociado
+    if (data.activo !== undefined && data.activo !== contratistaActual.activo && contratistaActual.asociado) {
       try {
-        const incorporador = await Incorporador.findById(contratistaActual.incorporador);
-        if (incorporador) {
-          incorporador.estadisticas.contratistasActivos = await Contratista.countDocuments({
-            incorporador: contratistaActual.incorporador,
+        const asociado = await Asociado.findById(contratistaActual.asociado);
+        if (asociado) {
+          asociado.estadisticas.contratistasActivos = await Contratista.countDocuments({
+            asociado: contratistaActual.asociado,
             activo: true
           });
-          await incorporador.save();
+          await asociado.save();
         }
       } catch (error) {
-        console.error('Error actualizando estadísticas del incorporador:', error);
+        console.error('Error actualizando estadísticas del asociado:', error);
       }
     }
 
@@ -324,22 +326,22 @@ export async function DELETE(req) {
   // Obtener el contratista antes de eliminarlo
   const contratista = await Contratista.findById(id);
 
-  if (contratista && contratista.incorporador) {
+  if (contratista && contratista.asociado) {
     try {
-      const incorporador = await Incorporador.findById(contratista.incorporador);
-      if (incorporador) {
-        incorporador.contratistasIncorporados = incorporador.contratistasIncorporados.filter(
+      const asociado = await Asociado.findById(contratista.asociado);
+      if (asociado) {
+        asociado.contratistasIncorporados = asociado.contratistasIncorporados.filter(
           contratistaId => contratistaId.toString() !== id
         );
-        incorporador.estadisticas.totalContratistasIncorporados = incorporador.contratistasIncorporados.length;
-        incorporador.estadisticas.contratistasActivos = await Contratista.countDocuments({
-          incorporador: contratista.incorporador,
+        asociado.estadisticas.totalContratistasIncorporados = asociado.contratistasIncorporados.length;
+        asociado.estadisticas.contratistasActivos = await Contratista.countDocuments({
+          asociado: contratista.asociado,
           activo: true
         });
-        await incorporador.save();
+        await asociado.save();
       }
     } catch (error) {
-      console.error('Error actualizando estadísticas del incorporador al eliminar:', error);
+      console.error('Error actualizando estadísticas del asociado al eliminar:', error);
     }
   }
 

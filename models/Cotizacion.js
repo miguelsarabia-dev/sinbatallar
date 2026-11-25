@@ -4,7 +4,9 @@ import mongoose from 'mongoose';
 const cotizacionSchema = new mongoose.Schema({
   // Referencias principales
   cita: { type: mongoose.Schema.Types.ObjectId, ref: 'Cita', required: true },
-  contratista: { type: mongoose.Schema.Types.ObjectId, ref: 'Contratista', required: true },
+  // Modelo permanente: el contratista. Modelo inicial: el especialista (y entonces contratista queda vacío).
+  contratista: { type: mongoose.Schema.Types.ObjectId, ref: 'Contratista', required: function () { return !this.especialista; } },
+  especialista: { type: mongoose.Schema.Types.ObjectId, ref: 'Especialista', default: null },
   // Técnico que originó la estimación (opcional). Si existe, la cotización pasa
   // primero por revisión del contratista antes de llegar al cliente.
   tecnico: { type: mongoose.Schema.Types.ObjectId, ref: 'Tecnico', default: null },
@@ -25,6 +27,11 @@ const cotizacionSchema = new mongoose.Schema({
     ferreteriaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Ferretero', default: null }
   }],
   manoDeObra: { type: Number, default: 0, min: 0 },
+
+  // MODELO INICIAL: día y hora para EMPEZAR el trabajo, acordados en sitio. El cliente los acepta junto con el precio
+  // y al aceptar pasan a cita.fechaProgramada / cita.horaInicio.
+  fechaInicioPropuesta: { type: Date, default: null },
+  horaInicioPropuesta: { type: String, trim: true, default: null },
 
   // Totales calculados
   costoMateriales: { type: Number, default: 0, min: 0 },

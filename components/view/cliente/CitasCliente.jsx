@@ -372,8 +372,14 @@ export default function CitasCliente() {
                         </h3>
                       </div>
                       <p className="text-xs sm:text-sm text-foreground font-bold truncate bg-white px-2 py-1 rounded inline-block">
-                        {cita.contratista?.nombre || cita.contratista?.nombreEmpresa}
+                        {cita.atiende ? `Especialista: ${cita.atiende.nombre}` : (cita.contratista?.nombre || cita.contratista?.nombreEmpresa)}
                       </p>
+                      {cita.atiende?.aspirantes?.length > 0 && (
+                        <p className="text-xs text-muted mt-1 truncate">Con aspirantes: {cita.atiende.aspirantes.join(', ')}</p>
+                      )}
+                      {cita.estado === 'solicitada' && !cita.contratista && !cita.atiende && (
+                        <p className="text-xs text-muted mt-1">Buscando especialista en tu zona…</p>
+                      )}
                       <p className="text-xs text-muted hidden sm:block mt-1">Cita #{cita._id.slice(-8)}</p>
                     </div>
                     <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-semibold flex-shrink-0 whitespace-nowrap ${getEstadoColor(cita.estado)}`}>
@@ -391,8 +397,17 @@ export default function CitasCliente() {
                       <p className="text-sm text-foreground font-bold line-clamp-2">{cita.descripcionProblema}</p>
                     </div>
 
+                    {cita.fechaVisita && (
+                      <div className="bg-sky-50 rounded-lg p-2.5 sm:p-3 border border-sky-200 text-xs sm:text-sm flex items-center gap-2">
+                        <FaCalendarAlt className="text-sky-600 flex-shrink-0" />
+                        <span><span className="text-slate-600">Visita para cotizar:</span>{' '}
+                          <span className="font-bold text-foreground">{new Date(cita.fechaVisita).toLocaleDateString('es-MX')}{cita.horaVisita ? ` · ${cita.horaVisita}` : ''}</span></span>
+                      </div>
+                    )}
+
                     {cita.fechaProgramada && (
                       <div className="bg-amber-50 rounded-lg p-2.5 sm:p-3 border border-amber-200">
+                        {cita.modelo === 'inicial' && <p className="text-xs text-slate-600 mb-1">Inicio del trabajo:</p>}
                         <div className="flex flex-col xs:flex-row xs:items-center gap-2 xs:gap-4 text-xs sm:text-sm">
                           <div className="flex items-center gap-1.5 sm:gap-2">
                             <FaCalendarAlt className="text-amber-600 flex-shrink-0" />
@@ -663,7 +678,7 @@ export default function CitasCliente() {
                 <span className="text-white font-bold text-lg">C</span>
               </div>
               <div>
-                <h3 className="font-bold text-gray-900">Califica al Contratista</h3>
+                <h3 className="font-bold text-gray-900">{modalCalificacion.cita?.atiende ? 'Califica al Especialista' : 'Califica al Contratista'}</h3>
                 <p className="text-xs text-gray-600">
                   {modalCalificacion.cita?.contratista?.nombre || 'Contratista'}
                 </p>
@@ -702,7 +717,7 @@ export default function CitasCliente() {
               {modalCalificacion.enviando ? 'Enviando calificaciones...' : 'Enviar Calificaciones'}
             </button>
             <p className="text-xs text-gray-500 text-center">
-              Debes calificar tanto al técnico como al contratista para continuar
+              {modalCalificacion.cita?.atiende ? 'Califica al especialista para continuar' : 'Debes calificar tanto al técnico como al contratista para continuar'}
             </p>
           </div>
         </div>

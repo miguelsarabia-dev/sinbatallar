@@ -1,5 +1,5 @@
 // app/api/incorporaciones/route.js
-// GET: incorporaciones del incorporador (token), derivadas de sus contratistas. Admin: todas (?incorporadorId=).
+// GET: incorporaciones del asociado (token), derivadas de sus contratistas. Admin: todas (?asociadoId=).
 //   [{ _id (= id del contratista), estado, contratista:{_id,nombre,email}, datos:{requeridos,presentes,faltantes}, evidencias, createdAt }]
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
@@ -9,21 +9,22 @@ import { requireSession } from '@/lib/session';
 import { perfilIdDe } from '@/lib/perfiles';
 import { esObjectId } from '@/lib/sanitize';
 import { estadoIncorporacion, datosIncorporacion } from '@/lib/incorporaciones';
+import { asociadoIdDe } from '@/lib/roles';
 
 export async function GET(request) {
   try {
     await connectDB();
-    const { session, error } = await requireSession(request, ['incorporador', 'admin']);
+    const { session, error } = await requireSession(request, ['asociado', 'admin']);
     if (error) return error;
 
     const filtro = {};
-    if (session.role === 'incorporador') {
+    if (session.role === 'asociado') {
       const miId = await perfilIdDe(session);
       if (!miId) return NextResponse.json([]);
-      filtro.incorporador = miId;
+      filtro.asociado = miId;
     } else {
-      const incId = new URL(request.url).searchParams.get('incorporadorId');
-      filtro.incorporador = esObjectId(incId) ? incId : { $ne: null };
+      const incId = asociadoIdDe(new URL(request.url).searchParams);
+      filtro.asociado = esObjectId(incId) ? incId : { $ne: null };
     }
 
     const contratistas = await Contratista.find(filtro)

@@ -199,14 +199,14 @@ export default function ContratistaDetails({ contratista, onClose }) {
                           </span>
                         </p>
                       </div>
-                      {details?.contratista?.incorporador && (
+                      {details?.contratista?.asociado && (
                         <div>
                           <label className="text-sm font-medium text-gray-600">Incorporado por</label>
                           <p className="text-sm text-gray-900 mt-1">
-                            {details.contratista.incorporador.nombre}
-                            {details.contratista.incorporador.telefono && (
+                            {details.contratista.asociado.nombre}
+                            {details.contratista.asociado.telefono && (
                               <span className="text-xs text-gray-500 ml-2">
-                                ({details.contratista.incorporador.telefono})
+                                ({details.contratista.asociado.telefono})
                               </span>
                             )}
                           </p>

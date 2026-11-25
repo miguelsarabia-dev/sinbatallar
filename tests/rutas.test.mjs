@@ -10,15 +10,12 @@ import { decidirAcceso, reglaDe } from '../lib/policy.js';
 const RAIZ = path.resolve(import.meta.dirname, '../app/api');
 const METODOS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
-// Públicas A PROPÓSITO (login, registro y catálogos del registro). Cualquier otra pública hace fallar la prueba.
+// Públicas A PROPÓSITO (login, registro de CLIENTES y catálogos). Cualquier otra pública hace fallar la prueba.
+// Contratistas y ferreterías ya no se registran solos: los da de alta el asociado o el admin.
 const PUBLICAS = new Set([
   'POST /api/auth/login',
   'POST /api/auth/google',
   'POST /api/users',
-  'POST /api/contratistas/solicitud',
-  'POST /api/ferreteros/solicitud',
-  'POST /api/contratistas',
-  'POST /api/ferreteros',
   'GET /api/servicios',
   'GET /api/areas?activo=true',
 ]);

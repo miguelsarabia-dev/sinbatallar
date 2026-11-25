@@ -10,6 +10,7 @@ import Servicio from '@/models/Servicio';
 import User from '@/models/User';
 import { enviarNotificacionCambioEstado } from '@/lib/email-service';
 import { requireSession } from '@/lib/session';
+import { getModelosConfig } from '@/lib/modelos-config';
 
 export async function POST(request, { params }) {
   try {
@@ -20,6 +21,12 @@ export async function POST(request, { params }) {
 
     const { id } = await params;
     const contratistaId = session.id; // del token; el body se ignora
+
+    // Mientras el modelo permanente esté apagado, las solicitudes abiertas solo las toman especialistas
+    const { permanenteActivo } = await getModelosConfig();
+    if (!permanenteActivo) {
+      return NextResponse.json({ error: 'Por ahora los servicios los atienden especialistas del modelo inicial' }, { status: 403 });
+    }
 
     const contratista = await Contratista.findById(contratistaId);
     if (!contratista || !contratista.aprobado || !contratista.activo) {
@@ -35,10 +42,12 @@ export async function POST(request, { params }) {
       {
         _id: id,
         estado: 'solicitada',
-        contratista: null
+        contratista: null,
+        especialista: null // la toma el primero que acepte: especialista o contratista
       },
       {
         contratista: contratistaId,
+        modelo: 'permanente',
         estado: 'atendida',
         $push: {
           historial: {
@@ -56,9 +65,17 @@ export async function POST(request, { params }) {
 
     if (!cita) {
       return NextResponse.json(
-        { error: 'La cita no está disponible. Puede que otro contratista ya la tomó.' },
+        { error: 'La cita no está disponible: otro la tomó primero.' },
         { status: 409 }
       );
+    }
+
+    // En el modelo permanente la fecha del servicio es fechaProgramada: si la solicitud abierta solo traía el día
+    // de visita que propuso el cliente, se usa ese
+    if (!cita.fechaProgramada && cita.fechaVisita) {
+      cita.fechaProgramada = cita.fechaVisita;
+      if (!cita.horaInicio && cita.horaVisita) cita.horaInicio = cita.horaVisita;
+      await cita.save({ validateModifiedOnly: true });
     }
 
     // Notificar al cliente por email (no bloqueante)

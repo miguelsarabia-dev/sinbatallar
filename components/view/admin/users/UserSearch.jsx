@@ -12,7 +12,7 @@ export default function UserSearch({ onSearch, loading }) {
     { value: 'cliente', label: 'Cliente' },
     { value: 'admin', label: 'Admin' },
     { value: 'aperturador', label: 'Aperturador' },
-    { value: 'incorporador', label: 'Incorporador' }
+    { value: 'asociado', label: 'Asociado' }
   ];
 
   const handleSearch = () => {

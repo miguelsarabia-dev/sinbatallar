@@ -347,15 +347,6 @@ export default function RegisterForm() {
                 Inicia sesión
               </a>
             </div>
-            <div className="text-gray-600 text-sm">
-              ¿Eres un contratista?{' '}
-              <a
-                href="/register/ContratistaRegister"
-                className="text-primary font-semibold hover:text-primary-hover"
-              >
-                Registra tu empresa
-              </a>
-            </div>
           </div>
         </div>
       </div>

@@ -25,7 +25,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Contratista no encontrado' }, { status: 404 });
     }
 
-    // Perfil completo para admin / el propio / su incorporador; para el resto, solo datos públicos.
+    // Perfil completo para admin / el propio / su asociado; para el resto, solo datos públicos.
     if (!(await relacionCon(session, contratista))) {
       const publico = await Contratista.findById(id).select(SELECT_PUBLICO).populate('servicios', 'nombre categoria');
       return NextResponse.json(publico);
@@ -38,7 +38,7 @@ export async function GET(request, { params }) {
   }
 }
 
-// PUT: Actualizar un contratista. Solo admin, el propio contratista o su incorporador, cada uno con su lista de campos
+// PUT: Actualizar un contratista. Solo admin, el propio contratista o su asociado, cada uno con su lista de campos
 // (lib/contratista-acceso.js); aprobar exige los datos escritos requeridos; la disponibilidad (`activo`) solo si está aprobado.
 export async function PUT(request, { params }) {
   try {
@@ -58,7 +58,7 @@ export async function PUT(request, { params }) {
 
     const body = await request.json();
 
-    // La zona la asigna el incorporador (o el admin): si el contratista la manda, 403 explícito, no se ignora
+    // La zona la asigna el asociado (o el admin): si el contratista la manda, 403 explícito, no se ignora
     const permisoZona = permisoCambioZona(relacion, zonasDeBody(body));
     if (!permisoZona.ok) return NextResponse.json({ error: permisoZona.error }, { status: permisoZona.status });
     const permisoServ = permisoCambioServicios(relacion, body.servicios);

@@ -7,7 +7,7 @@ export default function EditUserForm({
   onClose, 
   onUpdate, 
   onConvertToAperturador, 
-  onConvertToIncorporador,
+  onConvertToAsociado,
   showError 
 }) {
   const [formData, setFormData] = useState({
@@ -32,8 +32,8 @@ export default function EditUserForm({
     onClose();
   };
 
-  const handleConvertToIncorporador = () => {
-    onConvertToIncorporador(editingUser._id);
+  const handleConvertToAsociado = () => {
+    onConvertToAsociado(editingUser._id);
     onClose();
   };
 
@@ -103,12 +103,12 @@ export default function EditUserForm({
               <option value="cliente">Cliente</option>
               <option value="admin">Admin</option>
               <option value="aperturador">Aperturador</option>
-              <option value="incorporador">Incorporador</option>
+              <option value="asociado">Asociado</option>
             </select>
           </div>
 
           {/* Opciones de conversión rápida */}
-          {formData.role === 'cliente' && onConvertToAperturador && onConvertToIncorporador && (
+          {formData.role === 'cliente' && onConvertToAperturador && onConvertToAsociado && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
               <p className="text-sm font-semibold text-blue-900 mb-2">Conversión Rápida:</p>
               <div className="grid grid-cols-2 gap-2">
@@ -121,10 +121,10 @@ export default function EditUserForm({
                 </button>
                 <button
                   type="button"
-                  onClick={handleConvertToIncorporador}
+                  onClick={handleConvertToAsociado}
                   className="px-3 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700 transition-colors"
                 >
-                  Incorporador
+                  Asociado
                 </button>
               </div>
             </div>

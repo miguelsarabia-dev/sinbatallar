@@ -15,7 +15,7 @@ export async function GET(request, { params }) {
     const contratista = await Contratista.findById(id)
       .select('-password')
       .populate('servicios', 'nombre categoria descripcion tipo')
-      .populate('incorporador', 'nombre telefono')
+      .populate('asociado', 'nombre telefono')
       .lean();
 
     if (!contratista) {

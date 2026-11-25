@@ -29,7 +29,7 @@ export default function EditContratistaForm({
 
   const [showMapSelector, setShowMapSelector] = useState(false);
 
-  // Zonas disponibles para asignar (el admin y el incorporador dueño son quienes asignan la zona del contratista)
+  // Zonas disponibles para asignar (el admin y el asociado dueño son quienes asignan la zona del contratista)
   const [zonas, setZonas] = useState([]);
   const zonaOriginal = editingContratista?.areaId?._id || editingContratista?.areaId || '';
   useEffect(() => {
@@ -187,7 +187,7 @@ export default function EditContratistaForm({
                 </option>
               ))}
             </select>
-            <p className="text-xs text-gray-500 mt-1">La zona la asigna el incorporador o el administrador; es obligatoria para aprobar al contratista.</p>
+            <p className="text-xs text-gray-500 mt-1">La zona la asigna el asociado o el administrador; es obligatoria para aprobar al contratista.</p>
           </div>
 
           {/* Servicios que puede ofrecer */}

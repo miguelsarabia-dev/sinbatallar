@@ -4,6 +4,9 @@ import Servicio from '@/models/Servicio'; // registrado para el populate de serv
 import { NextResponse } from 'next/server';
 import DemandaFueraZona from '@/models/DemandaFueraZona';
 import { areasQueContienen } from '@/lib/geo-utils';
+import Especialista from '@/models/Especialista';
+import { getModelosConfig } from '@/lib/modelos-config';
+import { armarOfertaZona } from '@/lib/oferta-zona';
 
 // GET: Obtener servicios disponibles basados en la ubicación del usuario
 export async function GET(request) {
@@ -46,85 +49,65 @@ export async function GET(request) {
       });
     }
 
+    // Los dos modelos comparten zonas y solicitudes (lib/oferta-zona.js). Los contratistas solo cuentan si el admin
+    // activó el modelo permanente.
+    const areaIds = areas.map(a => a._id);
+    const { permanenteActivo } = await getModelosConfig();
+
     // Contratistas de la zona: por Area.contratistas Y por las zonas del propio contratista (areasIds / areaId), para que
     // no queden fuera los que se asignaron a la zona sin actualizar el arreglo del Area. Solo aprobados y disponibles.
-    const areaIds = areas.map(a => a._id);
-    const contratistas = await Contratista.find({
-      aprobado: true,
+    const contratistas = permanenteActivo
+      ? await Contratista.find({
+        aprobado: true,
+        activo: true,
+        $or: [
+          { _id: { $in: areas.flatMap(a => a.contratistas || []) } },
+          { areasIds: { $in: areaIds } },
+          { areaId: { $in: areaIds } }
+        ]
+      })
+        .select('-password -curp -informacionPago -notas') // nunca datos sensibles
+        .populate({ path: 'servicios', model: Servicio })
+        .lean()
+      : [];
+
+    // Especialistas (modelo inicial) aprobados, activos y disponibles en estas zonas
+    const especialistas = await Especialista.find({
       activo: true,
-      $or: [
-        { _id: { $in: areas.flatMap(a => a.contratistas || []) } },
-        { areasIds: { $in: areaIds } },
-        { areaId: { $in: areaIds } }
-      ]
+      aprobado: true,
+      disponible: { $ne: false },
+      areasIds: { $in: areaIds }
     })
-      .select('-password -curp -informacionPago -notas') // nunca datos sensibles
+      .select('areasIds servicios')
       .populate({ path: 'servicios', model: Servicio })
       .lean();
 
     // Un servicio borrado queda como null tras el populate: se descarta (antes tumbaba la ruta con un 500)
-    contratistas.forEach(c => { c.servicios = (c.servicios || []).filter(Boolean); });
+    [...contratistas, ...especialistas].forEach(c => { c.servicios = (c.servicios || []).filter(Boolean); });
 
-    // Zona que se reporta al cliente: la primera que tenga contratistas con servicios (o la primera si ninguna)
+    // Zona que se reporta al cliente: la primera que tenga a alguien con servicios (o la primera si ninguna)
     const ligadoA = (c, a) =>
       (a.contratistas || []).some(id => String(id) === String(c._id)) ||
       (c.areasIds || []).some(id => String(id) === String(a._id)) ||
       String(c.areaId) === String(a._id);
-    const area = areas.find(a => contratistas.some(c => c.servicios.length && ligadoA(c, a))) || areas[0];
+    const area = areas.find(a => [...contratistas, ...especialistas].some(c => c.servicios.length && ligadoA(c, a))) || areas[0];
+    const zonaPublica = { _id: area._id, nombre: area.nombre, clasificacion: area.clasificacion };
 
-    if (contratistas.length === 0) {
+    const servicios = armarOfertaZona({ contratistas, especialistas, permanenteActivo });
+    if (servicios.length === 0) {
       return NextResponse.json({
-        message: 'No hay contratistas activos en tu zona actualmente',
+        message: 'No hay especialistas activos en tu zona actualmente',
         servicios: [],
         categorias: [],
-        area: { _id: area._id, nombre: area.nombre, clasificacion: area.clasificacion },
+        area: zonaPublica,
         ubicacion: { lat, lng }
       });
     }
 
-    // Extraer todos los servicios únicos de los contratistas activos
-    const serviciosSet = new Set();
-    const serviciosConContratistas = [];
-
-    contratistas.forEach(contratista => {
-      if (contratista.servicios) {
-        contratista.servicios.forEach(servicio => {
-          const servicioId = servicio._id.toString();
-
-          if (!serviciosSet.has(servicioId)) {
-            serviciosSet.add(servicioId);
-
-            serviciosConContratistas.push({
-              servicio: servicio.toObject ? servicio.toObject() : servicio,
-              contratistas: contratistas
-                .filter(c => c.servicios.some(s => s._id.toString() === servicioId))
-                .map(c => ({
-                  _id: c._id,
-                  nombre: c.nombre,
-                  email: c.email,
-                  telefono: c.telefono,
-                  direccion: c.direccion,
-                  promedioCalificacion: c.promedioCalificacion || 0,
-                  totalCalificaciones: c.totalCalificaciones || 0,
-                  ubicacion: c.ubicacion
-                })),
-              totalContratistas: contratistas.filter(c =>
-                c.servicios.some(s => s._id.toString() === servicioId)
-              ).length
-            });
-          }
-        });
-      }
-    });
-
     return NextResponse.json({
-      servicios: serviciosConContratistas,
-      categorias: [...new Set(serviciosConContratistas.map(sc => sc.servicio.categoria))],
-      area: {
-        _id: area._id,
-        nombre: area.nombre,
-        clasificacion: area.clasificacion
-      },
+      servicios,
+      categorias: [...new Set(servicios.map(sc => sc.servicio.categoria))],
+      area: zonaPublica,
       ubicacion: { lat, lng }
     });
 

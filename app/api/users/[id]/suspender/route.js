@@ -1,6 +1,6 @@
 // app/api/users/[id]/suspender/route.js
 // PUT { suspendido: boolean, motivo? } — solo admin. `id` puede ser el _id de un User (cliente, técnico,
-// ferretero, aperturador, incorporador) o de un Contratista. Una cuenta suspendida no puede iniciar sesión
+// ferretero, aperturador, asociado) o de un Contratista. Una cuenta suspendida no puede iniciar sesión
 // (403 'Tu cuenta está suspendida') y su token deja de valer (401).
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
