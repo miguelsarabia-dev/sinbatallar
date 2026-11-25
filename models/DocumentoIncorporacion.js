@@ -1,5 +1,5 @@
 // models/DocumentoIncorporacion.js
-// Documentos de identidad/domicilio de un contratista que reúne su incorporador (US-INC-002).
+// Documentos de identidad/domicilio de un contratista que reúne su asociado (US-INC-002).
 // El archivo vive en Cloudinary como recurso autenticado (URL firmada y temporal).
 import mongoose from 'mongoose';
 

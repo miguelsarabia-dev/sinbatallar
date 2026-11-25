@@ -6,14 +6,29 @@ const citaSchema = new mongoose.Schema({
   cliente: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   contratista: { type: mongoose.Schema.Types.ObjectId, ref: 'Contratista' },
 
+  // Modelo de negocio con que se atiende. null = solicitud abierta que nadie ha tomado todavía (la bolsa de citas
+  // es compartida: la toma el primero que acepte). 'inicial' = especialista + aspirantes; 'permanente' = contratista.
+  modelo: { type: String, enum: ['inicial', 'permanente', null], default: null },
+  // MODELO INICIAL: especialista que tomó la cita y aspirantes que lleva (máximo 2)
+  especialista: { type: mongoose.Schema.Types.ObjectId, ref: 'Especialista', default: null },
+  aspirantes: {
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Aspirante' }],
+    default: [],
+    validate: { validator: (v) => v.length <= 2, message: 'Máximo 2 aspirantes por servicio' }
+  },
+
   // Información del servicio
   servicio: { type: mongoose.Schema.Types.ObjectId, ref: 'Servicio', required: true },
   // Detalles de la solicitud del cliente
   descripcionProblema: { type: String, required: true, trim: true },
   imagenesProblema: [{ type: String }],
 
-  // Programación de la cita
+  // Programación de la cita. En el modelo inicial es el día en que EMPIEZA EL TRABAJO (se acuerda después de cotizar).
   fechaProgramada: { type: Date },
+  // MODELO INICIAL: visita al domicilio para cotizar (sin costo). La propone el cliente al solicitar y la confirma
+  // o ajusta el especialista. Se guarda aparte para no perderla cuando se agenda el inicio del trabajo.
+  fechaVisita: { type: Date, default: null },
+  horaVisita: { type: String, trim: true, default: null },
 
   // Ubicación del servicio
   ubicacion: {
@@ -90,6 +105,7 @@ const citaSchema = new mongoose.Schema({
   // Flags de calificación
   calificadoContratista: { type: Boolean, default: false },
   calificadoTecnico: { type: Boolean, default: false },
+  calificadoEspecialista: { type: Boolean, default: false },
 
   // Información de pago
   pagado: { type: Boolean, default: false },
@@ -106,6 +122,8 @@ const citaSchema = new mongoose.Schema({
 // Índices
 citaSchema.index({ cliente: 1, estado: 1 });
 citaSchema.index({ contratista: 1, estado: 1 });
+citaSchema.index({ especialista: 1, estado: 1 });
+citaSchema.index({ aspirantes: 1, estado: 1 });
 citaSchema.index({ servicio: 1, estado: 1 });
 citaSchema.index({ 'ubicacion.zona': 1, estado: 1 });
 citaSchema.index({ fechaProgramada: 1, estado: 1 });

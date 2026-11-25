@@ -2,7 +2,7 @@ import { connectDB } from '@/lib/mongoose';
 import Contratista from '@/models/Contratista';
 import Cita from '@/models/Cita';
 import Cotizacion from '@/models/Cotizacion';
-import Incorporador from '@/models/Incorporador';
+import Asociado from '@/models/Asociado';
 import Servicio from '@/models/Servicio';
 import { NextResponse } from 'next/server';
 
@@ -51,7 +51,7 @@ export async function GET(request) {
     const contratistas = await Contratista.find(query)
       .select('-password')
       .populate('servicios', 'nombre categoria')
-      .populate('incorporador', 'nombre')
+      .populate('asociado', 'nombre')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)

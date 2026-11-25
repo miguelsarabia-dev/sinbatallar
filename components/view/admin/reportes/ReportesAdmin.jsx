@@ -61,7 +61,7 @@ export default function ReportesAdmin() {
                         <Tarjeta titulo="Comisión plataforma" valor={peso(r.comisiones.plataforma)} />
                         <Tarjeta titulo="Contratistas" valor={peso(r.comisiones.contratistas)} detalle={`Técnicos ${peso(r.comisiones.tecnicos)}`} />
                         <Tarjeta titulo="Aperturadores" valor={peso(r.comisiones.aperturadores)} />
-                        <Tarjeta titulo="Incorporadores" valor={peso(r.comisiones.incorporadores)} />
+                        <Tarjeta titulo="Asociados" valor={peso(r.comisiones.asociados)} />
                         <Tarjeta titulo="Activos" valor={`${r.contratistasActivos} contr. · ${r.tecnicosActivos} téc.`} detalle={`${r.ferreteriasActivas} ferreterías`} />
                         <Tarjeta titulo="Solicitudes de material"
                             valor={Object.values(r.solicitudesMaterial).reduce((a, b) => a + b, 0)}

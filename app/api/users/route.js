@@ -1,32 +1,33 @@
 import { connectDB } from '@/lib/mongoose'
 import User from '@/models/User'
-import Incorporador from '@/models/Incorporador'
+import Asociado from '@/models/Asociado'
 import Aperturador from '@/models/Aperturador'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 import { enviarEmailBienvenidaCliente } from '@/lib/email-service'
 import { getSessionFromRequest } from '@/lib/session'
 import { limitarPorIp } from '@/lib/rate-limit'
+import { esAsociado } from '@/lib/roles'
 
 // Roles que solo un admin puede crear/asignar (el registro público es solo para clientes).
-const ROLES_RESTRINGIDOS = ['aperturador', 'incorporador', 'admin'];
+const ROLES_RESTRINGIDOS = ['aperturador', 'asociado', 'admin'];
 
 async function esAdminLaPeticion(request) {
     const session = await getSessionFromRequest(request);
     return session?.role === 'admin';
 }
 
-// Garantiza que un usuario con rol incorporador tenga su doc en la colección
-// incorporadores. Idempotente: no duplica si ya existe. El registro de
+// Garantiza que un usuario con rol asociado tenga su doc en la colección
+// asociados. Idempotente: no duplica si ya existe. El registro de
 // contratistas requiere ese doc (POST /contratistas exige su _id).
-async function asegurarDocIncorporador(userId) {
+async function asegurarDocAsociado(userId) {
     try {
-        const existente = await Incorporador.findOne({ user: userId });
+        const existente = await Asociado.findOne({ user: userId });
         if (!existente) {
-            await Incorporador.create({ user: userId });
+            await Asociado.create({ user: userId });
         }
     } catch (err) {
-        console.error('Error asegurando doc de incorporador:', err);
+        console.error('Error asegurando doc de asociado:', err);
     }
 }
 
@@ -62,7 +63,7 @@ function validateUserData(data, isRegister = false) {
         if (!data.telefono) errors.push('Teléfono requerido');
     }
 
-    if (data.role && !['cliente', 'contratista', 'admin', 'aperturador', 'incorporador'].includes(data.role)) {
+    if (data.role && !['cliente', 'contratista', 'admin', 'aperturador', 'asociado', 'incorporador'].includes(data.role)) {
         errors.push('Rol inválido');
     }
 
@@ -218,8 +219,8 @@ export async function POST(request) {
                     }).catch(err => console.error('Error enviando email de bienvenida:', err));
                 }
 
-                if (user.role === 'incorporador') {
-                    await asegurarDocIncorporador(user._id);
+                if (esAsociado(user.role)) {
+                    await asegurarDocAsociado(user._id);
                 }
                 if (user.role === 'aperturador') {
                     await asegurarDocAperturador(user._id);
@@ -298,7 +299,7 @@ export async function PUT(request) {
         if (!admin) {
             return NextResponse.json({ error: 'Solo un administrador puede cambiar el rol' }, { status: 403 });
         }
-        if (typeof data.role !== 'string' || !['cliente', 'admin', 'aperturador', 'incorporador', 'ferretero', 'tecnico'].includes(data.role)) {
+        if (typeof data.role !== 'string' || !['cliente', 'admin', 'aperturador', 'asociado', 'ferretero', 'tecnico'].includes(data.role)) {
             return NextResponse.json({ error: 'Rol inválido' }, { status: 400 });
         }
     }
@@ -326,10 +327,10 @@ export async function PUT(request) {
         const user = await User.findByIdAndUpdate(userId, update, { new: true, runValidators: true });
         if (!user) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
 
-        // Si el usuario quedó como incorporador, garantizar su doc para no
+        // Si el usuario quedó como asociado, garantizar su doc para no
         // bloquear el registro de contratistas.
-        if (user.role === 'incorporador') {
-            await asegurarDocIncorporador(user._id);
+        if (esAsociado(user.role)) {
+            await asegurarDocAsociado(user._id);
         }
         if (user.role === 'aperturador') {
             await asegurarDocAperturador(user._id);

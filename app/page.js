@@ -27,8 +27,14 @@ export default function LandingPage() {
         case 'aperturador':
           router.push('/aperturador');
           break;
-        case 'incorporador':
-          router.push('/incorporador');
+        case 'asociado':
+          router.push('/asociado');
+          break;
+        case 'especialista':
+          router.push('/especialista');
+          break;
+        case 'aspirante':
+          router.push('/aspirante');
           break;
         case 'ferretero':
           router.push('/ferretero');

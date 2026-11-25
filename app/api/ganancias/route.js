@@ -14,14 +14,14 @@ import { requireSession } from '@/lib/session';
 import { perfilIdDe } from '@/lib/perfiles';
 import { getFinancialConfig, gananciaDeCita } from '@/lib/comisiones';
 
-const ROLES = ['contratista', 'tecnico', 'admin', 'aperturador', 'incorporador'];
+const ROLES = ['contratista', 'tecnico', 'admin', 'aperturador', 'asociado'];
 
 // Campo de la distribución que corresponde a cada rol
 const CAMPO_MONTO = {
   contratista: 'distribucion.contratista.montoTotal',
   tecnico: 'distribucion.tecnico.monto',
   aperturador: 'distribucion.aperturador.monto',
-  incorporador: 'distribucion.incorporador.monto',
+  asociado: 'distribucion.asociado.monto',
   admin: 'distribucion.plataforma.monto'
 };
 
@@ -53,8 +53,8 @@ export async function GET(request) {
     const ahora = new Date();
     const fechaInicio = fechaInicioPeriodo(periodo);
 
-    // Identidad del usuario en las comisiones (aperturador/incorporador: id del perfil y, por zonas antiguas, del usuario)
-    const idsPerfilYUsuario = ['aperturador', 'incorporador'].includes(role)
+    // Identidad del usuario en las comisiones (aperturador/asociado: id del perfil y, por zonas antiguas, del usuario)
+    const idsPerfilYUsuario = ['aperturador', 'asociado'].includes(role)
       ? [...new Set([await perfilIdDe(session), session.id].filter(Boolean))]
       : [];
     const filtros = { estadoPago: { $ne: 'cancelada' }, createdAt: { $gte: fechaInicio } };
@@ -68,8 +68,8 @@ export async function GET(request) {
       filtros['distribucion.tecnico.id'] = tecnicoId;
     } else if (role === 'aperturador') {
       filtros['distribucion.aperturador.id'] = { $in: idsPerfilYUsuario };   // zonas antiguas guardan el id de usuario
-    } else if (role === 'incorporador') {
-      filtros['distribucion.incorporador.id'] = { $in: idsPerfilYUsuario };
+    } else if (role === 'asociado') {
+      filtros['distribucion.asociado.id'] = { $in: idsPerfilYUsuario };
     }
 
     const campo = CAMPO_MONTO[role];
@@ -96,7 +96,7 @@ export async function GET(request) {
 
     // Pendiente: pago verificado (anticipo o pago único) pero servicio aún sin cerrar/comisionar.
     let pendiente = 0;
-    if (['contratista', 'tecnico', 'admin', 'aperturador', 'incorporador'].includes(role)) {
+    if (['contratista', 'tecnico', 'admin', 'aperturador', 'asociado'].includes(role)) {
       const filtroCot = {
         estado: 'aceptada',
         $or: [{ 'anticipo.verificado': true }, { 'pagoUnico.verificado': true }]
@@ -111,9 +111,9 @@ export async function GET(request) {
         const zonas = await Area.find({ aperturador: { $in: idsPerfilYUsuario } }).distinct('_id');
         filtroCot.cita = { $in: await Cita.find({ 'ubicacion.zona': { $in: zonas } }).distinct('_id') };
       }
-      if (role === 'incorporador') {
+      if (role === 'asociado') {
         // servicios de los contratistas que incorporó
-        filtroCot.contratista = { $in: await Contratista.find({ incorporador: { $in: idsPerfilYUsuario } }).distinct('_id') };
+        filtroCot.contratista = { $in: await Contratista.find({ asociado: { $in: idsPerfilYUsuario } }).distinct('_id') };
       }
       const cotizaciones = await Cotizacion.find(filtroCot);
       const conComision = new Set(
@@ -132,7 +132,7 @@ export async function GET(request) {
         pendiente += role === 'contratista' ? g.gananciaContratista
           : role === 'tecnico' ? g.gananciaTecnico
           : role === 'aperturador' ? g.comisionAperturador
-          : role === 'incorporador' ? g.comisionIncorporador
+          : role === 'asociado' ? g.comisionAsociado
           : g.comisionPlataforma;
       }
     }
@@ -151,7 +151,7 @@ export async function GET(request) {
     let desgloseCostos = null;
     if (role === 'contratista') {
       const plataforma = sum(comisiones, c => c.distribucion?.plataforma?.monto);
-      const otros = sum(comisiones, c => (c.distribucion?.aperturador?.monto || 0) + (c.distribucion?.incorporador?.monto || 0));
+      const otros = sum(comisiones, c => (c.distribucion?.aperturador?.monto || 0) + (c.distribucion?.asociado?.monto || 0));
       const tecnico = sum(comisiones, c => c.distribucion?.tecnico?.monto);
       const materiales = sum(comisiones, c => c.costoMateriales);
       const manoDeObra = sum(comisiones, c => c.manoDeObra);
@@ -162,7 +162,7 @@ export async function GET(request) {
       };
     }
 
-    // Nombres de la zona y del contratista de cada servicio (útiles para el aperturador y el incorporador)
+    // Nombres de la zona y del contratista de cada servicio (útiles para el aperturador y el asociado)
     const zonaIds = [...new Set(comisiones.map(c => c.cita?.ubicacion?.zona).filter(Boolean).map(String))];
     const contratistaIds = [...new Set(comisiones.map(c => c.distribucion?.contratista?.id).filter(Boolean).map(String))];
     const [zonasDocs, contratistasDocs] = await Promise.all([

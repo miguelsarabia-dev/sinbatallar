@@ -11,6 +11,8 @@ import { resolverAreaId } from '@/lib/geo-utils';
 import Comision from '@/models/Comision';
 import { idSeguro } from '@/lib/sanitize';
 import Tecnico from '@/models/Tecnico';
+import '@/models/Especialista'; // registrados para el populate del modelo inicial
+import '@/models/Aspirante';
 import { getSessionFromRequest, requireSession } from '@/lib/session';
 import { cambiarEstadoCita } from '@/lib/citas-estado';
 import { citasPorLiquidar } from '@/lib/liquidacion-db';
@@ -90,6 +92,9 @@ export async function GET(request) {
         }
       })
       .populate({ path: 'tecnico', populate: { path: 'user', select: 'nombre email telefono' } })
+      // Modelo inicial: quién atiende (especialista) y los aspirantes que lleva
+      .populate({ path: 'especialista', select: 'user promedioCalificacion totalCalificaciones', populate: { path: 'user', select: 'nombre telefono' } })
+      .populate({ path: 'aspirantes', select: 'user', populate: { path: 'user', select: 'nombre' } })
       .sort({ createdAt: -1, fechaProgramada: 1 });
 
     // Ganancia por cita: solo para el contratista dueño, su técnico o el admin (la sesión es opcional).
@@ -124,6 +129,28 @@ export async function GET(request) {
 
         const obj = cita.toObject();
         obj.areaId = areaId || null;
+
+        // Modelo inicial: `atiende` describe quién va. Para el cliente, `contratista` se llena con el especialista
+        // (solo para mostrarlo): las pantallas del cliente, incluida la app móvil instalada, leen contratista.nombre.
+        if (obj.modelo === 'inicial' && obj.especialista) {
+          obj.atiende = {
+            tipo: 'especialista',
+            _id: obj.especialista._id,
+            nombre: obj.especialista.user?.nombre || 'Especialista',
+            telefono: obj.especialista.user?.telefono || null,
+            promedioCalificacion: obj.especialista.promedioCalificacion || 0,
+            aspirantes: (obj.aspirantes || []).map(a => a.user?.nombre).filter(Boolean)
+          };
+          if (session.role === 'cliente' && !obj.contratista) {
+            obj.contratista = {
+              _id: obj.especialista._id,
+              nombre: obj.atiende.nombre,
+              telefono: obj.atiende.telefono,
+              promedioCalificacion: obj.atiende.promedioCalificacion,
+              esEspecialista: true
+            };
+          }
+        }
         // Express sin atender: sigue 'solicitada' pasados 30 min
         obj.urgenteSinAtender = !!cita.esExpress && cita.estado === 'solicitada' &&
           Date.now() - new Date(cita.createdAt).getTime() > 30 * 60 * 1000;
@@ -225,7 +252,8 @@ export async function POST(request) {
       descripcionProblema,
       imagenesProblema,
       ubicacion,
-      fechaProgramada: fechaProgramada ? new Date(fechaProgramada) : null,
+      // Solicitud abierta: el día que propone el cliente es para que vayan a cotizar (lib/inicial-citas.js)
+      fechaVisita: fechaProgramada && !Number.isNaN(new Date(fechaProgramada).getTime()) ? new Date(fechaProgramada) : null,
       esExpress: formData.get('esExpress') === 'true',
       estado: 'solicitada'
     });

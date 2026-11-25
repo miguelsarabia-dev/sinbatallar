@@ -1,4 +1,5 @@
 // app/api/cotizaciones/[id]/route.js
+import { aplicarInicioAceptado } from '@/lib/inicial-citas';
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Cotizacion from '@/models/Cotizacion';
@@ -378,6 +379,8 @@ export async function PATCH(request, { params }) {
             : 'Cliente aceptó la cotización y declaró el anticipo. Pendiente de verificación',
           usuario: session.id
         });
+        // Modelo inicial: el día de inicio acordado en la cotización queda como inicio del trabajo
+        aplicarInicioAceptado(cita, cotizacion);
         await cita.save();
 
         // Calcular costo total de materiales

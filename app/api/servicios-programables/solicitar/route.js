@@ -9,7 +9,11 @@ import Contratista from '@/models/Contratista';
 import Servicio from '@/models/Servicio';
 import User from '@/models/User';
 import { uploadMultipleImages } from '@/lib/cloudinary';
-import { resolverAreaId } from '@/lib/geo-utils';
+import { resolverAreaId, areasQueContienen } from '@/lib/geo-utils';
+import Especialista from '@/models/Especialista';
+import { getModelosConfig } from '@/lib/modelos-config';
+import { esSolicitudAbierta } from '@/lib/oferta-zona';
+import { esObjectId } from '@/lib/sanitize';
 import { citasPorLiquidar } from '@/lib/liquidacion-db';
 
 // POST: Solicitar un servicio programable
@@ -39,7 +43,8 @@ export async function POST(request) {
     const ubicacionStr = formData.get('ubicacionServicio');
     const fechaPreferida = formData.get('fechaPreferida');
     const fechaProgramadaForm = formData.get('fechaProgramada');
-    const horaInicio = formData.get('horaInicio');
+    // La web manda horaPreferida; la app móvil, horaInicio
+    const horaInicio = formData.get('horaInicio') || formData.get('horaPreferida');
     // Servicio urgente: la app manda esExpress='true'|'false'
     const esExpress = formData.get('esExpress') === 'true';
 
@@ -83,11 +88,16 @@ export async function POST(request) {
     }
 
     // Validaciones
-    if (!clienteId || !servicioId || !contratistaId || !descripcionProblema) {
+    if (!clienteId || !servicioId || !descripcionProblema) {
       return NextResponse.json(
-        { error: 'Campos requeridos: clienteId, servicioId, contratistaId, descripcionProblema' },
+        { error: 'Campos requeridos: servicioId, descripcionProblema' },
         { status: 400 }
       );
+    }
+    // Solicitud ABIERTA (contratistaId 'abierta' / 'auto' / vacío): la toma el primero que acepte (lib/oferta-zona.js)
+    const abierta = esSolicitudAbierta(contratistaId);
+    if (!abierta && !esObjectId(contratistaId)) {
+      return NextResponse.json({ error: 'contratistaId inválido' }, { status: 400 });
     }
 
     // Verificar cliente
@@ -102,14 +112,20 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Servicio no encontrado' }, { status: 404 });
     }
 
-    // Verificar contratista
-    const contratista = await Contratista.findById(contratistaId);
-    if (!contratista) {
-      return NextResponse.json({ error: 'Contratista no encontrado' }, { status: 404 });
-    }
-
-    if (!contratista.servicios.includes(servicioId)) {
-      return NextResponse.json({ error: 'El contratista no ofrece este servicio' }, { status: 400 });
+    // Contratista elegido (modelo permanente): solo si el admin activó ese modelo
+    let contratista = null;
+    if (!abierta) {
+      const { permanenteActivo } = await getModelosConfig();
+      if (!permanenteActivo) {
+        return NextResponse.json({ error: 'Por ahora los servicios los atienden especialistas: envía la solicitud sin elegir contratista' }, { status: 409 });
+      }
+      contratista = await Contratista.findById(contratistaId);
+      if (!contratista) {
+        return NextResponse.json({ error: 'Contratista no encontrado' }, { status: 404 });
+      }
+      if (!contratista.servicios.map(String).includes(String(servicioId))) {
+        return NextResponse.json({ error: 'El contratista no ofrece este servicio' }, { status: 400 });
+      }
     }
 
 
@@ -142,10 +158,27 @@ export async function POST(request) {
 
     // Resolver la zona (Area) a partir de las coordenadas de la dirección seleccionada
     // (si cae en zonas encimadas, la del contratista elegido)
-    ubicacionProcesada.zona = await resolverAreaId(ubicacionProcesada.coordenadas, [
-      ...(contratista.areasIds || []),
-      contratista.areaId
-    ]);
+    if (contratista) {
+      ubicacionProcesada.zona = await resolverAreaId(ubicacionProcesada.coordenadas, [
+        ...(contratista.areasIds || []),
+        contratista.areaId
+      ]);
+    } else {
+      // Solicitud abierta: la zona (si hay varias encimadas, una donde algún especialista ofrezca el servicio)
+      const zonas = await areasQueContienen(ubicacionProcesada.coordenadas, { soloActivas: true, select: '_id' });
+      if (!zonas.length) {
+        return NextResponse.json({ error: 'La dirección está fuera de nuestras zonas de servicio' }, { status: 400 });
+      }
+      const conEspecialista = await Especialista.findOne({
+        activo: true, aprobado: true, disponible: { $ne: false },
+        servicios: servicioId, areasIds: { $in: zonas.map(z => z._id) }
+      }).select('areasIds').lean();
+      if (!conEspecialista) {
+        return NextResponse.json({ error: 'Por ahora no hay especialistas que ofrezcan este servicio en tu zona' }, { status: 409 });
+      }
+      const suyas = new Set((conEspecialista.areasIds || []).map(String));
+      ubicacionProcesada.zona = (zonas.find(z => suyas.has(String(z._id))) || zonas[0])._id;
+    }
 
     // fechaProgramada (si la app la manda) tiene prioridad sobre fechaPreferida
     const fechaTexto = fechaProgramadaForm || fechaPreferida;
@@ -154,13 +187,23 @@ export async function POST(request) {
     // Crear cita
     const nuevaCita = new Cita({
       cliente: clienteId,
-      contratista: contratistaId,
+      contratista: contratista?._id || null,
       servicio: servicioId,
+      modelo: contratista ? 'permanente' : null,
       descripcionProblema,
       ubicacion: ubicacionProcesada,
       imagenesProblema,
-      fechaProgramada: fechaProgramadaValida,
-      ...(typeof horaInicio === 'string' && horaInicio.trim() ? { horaInicio: horaInicio.trim().slice(0, 10) } : {}),
+      // Con contratista elegido (permanente) es la fecha del servicio. En la solicitud abierta (modelo inicial) es el
+      // día que el cliente propone para que vayan a COTIZAR; el inicio del trabajo se acuerda después.
+      ...(contratista
+        ? {
+          fechaProgramada: fechaProgramadaValida,
+          ...(typeof horaInicio === 'string' && horaInicio.trim() ? { horaInicio: horaInicio.trim().slice(0, 10) } : {})
+        }
+        : {
+          fechaVisita: fechaProgramadaValida,
+          ...(typeof horaInicio === 'string' && horaInicio.trim() ? { horaVisita: horaInicio.trim().slice(0, 10) } : {})
+        }),
       esExpress,
       estado: 'solicitada'
     });
@@ -173,8 +216,8 @@ export async function POST(request) {
       { path: 'servicio', select: 'nombre descripcion categoria' }
     ]);
 
-    // Aviso por email de cita nueva al contratista elegido
-    enviarNotificacionCambioEstado({
+    // Aviso por email de cita nueva al contratista elegido (la solicitud abierta no tiene a quién avisar todavía)
+    if (contratista) enviarNotificacionCambioEstado({
       nuevoEstado: 'solicitada',
       cita: nuevaCita,
       cliente: nuevaCita.cliente,
@@ -184,7 +227,9 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Solicitud enviada. El contratista preparará una cotización.',
+      message: contratista
+        ? 'Solicitud enviada. El contratista preparará una cotización.'
+        : 'Solicitud enviada. Un especialista de tu zona la tomará y te visitará para cotizar sin costo.',
       cita: {
         _id: nuevaCita._id,
         estado: nuevaCita.estado,
@@ -192,6 +237,8 @@ export async function POST(request) {
         contratista: nuevaCita.contratista,
         servicio: nuevaCita.servicio,
         fechaProgramada: nuevaCita.fechaProgramada,
+        fechaVisita: nuevaCita.fechaVisita,
+        horaVisita: nuevaCita.horaVisita,
         esExpress: nuevaCita.esExpress
       }
     }, { status: 201 });

@@ -10,7 +10,8 @@ export default function UserTable({ users, onViewDetails, onEdit, onDelete, onSu
         return <FaWarehouse className="text-blue-600" />;
       case 'aperturador':
         return <FaMapMarkedAlt className="text-green-600" />;
-      case 'incorporador':
+      case 'asociado':
+      case 'incorporador': // nombre anterior (cuenta sin migrar)
         return <FaUserPlus className="text-yellow-600" />;
       default:
         return <FaUser className="text-gray-600" />;
@@ -25,7 +26,8 @@ export default function UserTable({ users, onViewDetails, onEdit, onDelete, onSu
         return 'bg-blue-100 text-blue-800';
       case 'aperturador':
         return 'bg-green-100 text-green-800';
-      case 'incorporador':
+      case 'asociado':
+      case 'incorporador': // nombre anterior (cuenta sin migrar)
         return 'bg-yellow-100 text-yellow-800';
       default:
         return 'bg-gray-100 text-gray-800';

@@ -2,8 +2,12 @@
 // contexts/AuthContext.jsx
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { normalizarRol } from '@/lib/roles';
 
 const AuthContext = createContext(null);
+
+// Cuentas sin migrar traen el rol anterior ('incorporador'): en la web se manejan siempre con el vigente ('asociado')
+const conRolVigente = (u) => (u ? { ...u, role: normalizarRol(u.role), userType: normalizarRol(u.userType) } : u);
 
 // Referencia global para signOut (para uso sin hook)
 let globalSignOut = null;
@@ -29,7 +33,7 @@ export function AuthProvider({ children }) {
                             throw new Error('Token expirado');
                         }
                     }
-                    setUser(JSON.parse(userData));
+                    setUser(conRolVigente(JSON.parse(userData)));
                     document.cookie = `auth-token=${token}; path=/; max-age=${7 * 24 * 60 * 60}`;
                 }
             } catch (error) {
@@ -63,9 +67,9 @@ export function AuthProvider({ children }) {
             localStorage.setItem('auth-user', JSON.stringify(data.user));
             document.cookie = `auth-token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}`;
 
-            setUser(data.user);
+            setUser(conRolVigente(data.user));
 
-            return { success: true, user: data.user };
+            return { success: true, user: conRolVigente(data.user) };
         } catch (error) {
             console.error('Error en login:', error);
             return { error: 'Error de conexión' };
@@ -91,9 +95,9 @@ export function AuthProvider({ children }) {
             localStorage.setItem('auth-user', JSON.stringify(data.user));
             document.cookie = `auth-token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}`;
 
-            setUser(data.user);
+            setUser(conRolVigente(data.user));
 
-            return { success: true, user: data.user };
+            return { success: true, user: conRolVigente(data.user) };
         } catch (error) {
             console.error('Error en login con Google:', error);
             return { error: 'Error de conexión' };

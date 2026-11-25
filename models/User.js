@@ -1,5 +1,6 @@
 // models/User.js
 import mongoose from 'mongoose';
+import { ROLES_USUARIO } from '../lib/roles.js';
 
 const userSchema = new mongoose.Schema({
   // Opcional: un cliente puede registrarse solo con teléfono. sparse permite varios usuarios sin email.
@@ -10,7 +11,7 @@ const userSchema = new mongoose.Schema({
   googleId: { type: String, unique: true, sparse: true }, // Google OAuth ID
   role: {
     type: String,
-    enum: ['cliente', 'admin', 'aperturador', 'incorporador', 'ferretero', 'tecnico'],
+    enum: ROLES_USUARIO, // incluye 'incorporador' (nombre anterior de 'asociado') para cuentas sin migrar
     default: 'cliente'
   },
   fotoUrl: { type: String, trim: true },

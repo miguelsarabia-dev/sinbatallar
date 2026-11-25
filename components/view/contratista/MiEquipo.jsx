@@ -1,5 +1,5 @@
 'use client';
-// Técnicos del contratista. Al crear uno, sus especialidades son chips con los servicios que el incorporador
+// Técnicos del contratista. Al crear uno, sus especialidades son chips con los servicios que el asociado
 // le asignó al contratista (no se escriben a mano).
 import { useState, useEffect, useCallback } from 'react';
 import { ChipsSeleccion } from '../../ui/ChipsServicios';
@@ -93,7 +93,7 @@ export default function MiEquipo({ contratistaId, servicios = [] }) {
               opciones={opciones}
               seleccion={especialidades}
               onChange={setEspecialidades}
-              vacio="Aún no tienes servicios asignados. Tu incorporador debe asignártelos para poder elegir especialidades."
+              vacio="Aún no tienes servicios asignados. Tu asociado debe asignártelos para poder elegir especialidades."
             />
           </div>
           <button type="submit" disabled={guardando} className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50">

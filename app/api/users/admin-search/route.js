@@ -4,6 +4,7 @@ import Cita from '@/models/Cita';
 import Servicio from '@/models/Servicio';
 import Cotizacion from '@/models/Cotizacion';
 import { NextResponse } from 'next/server';
+import { ROLES_ASOCIADO_BD } from '@/lib/roles';
 
 // GET: Búsqueda avanzada de usuarios para admin con stats
 export async function GET(request) {
@@ -22,7 +23,7 @@ export async function GET(request) {
     
     // Filtro por rol
     if (role && role !== 'todos') {
-      query.role = role;
+      query.role = role === 'asociado' ? { $in: ROLES_ASOCIADO_BD } : role;
     }
     
     // Búsqueda por nombre, email o teléfono

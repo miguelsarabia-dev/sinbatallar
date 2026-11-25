@@ -8,31 +8,31 @@ test('reparación: crea los perfiles que faltan y no duplica los existentes', ()
   const plan = planificarReparacion({
     usuarios: [
       { _id: 'u1', role: 'aperturador' }, { _id: 'u2', role: 'aperturador' },
-      { _id: 'u3', role: 'incorporador' }, { _id: 'u4', role: 'incorporador' }
+      { _id: 'u3', role: 'asociado' }, { _id: 'u4', role: 'asociado' }
     ],
     perfilesAperturador: [{ _id: 'p1', user: 'u1' }],
-    perfilesIncorporador: [{ _id: 'i4', user: 'u4' }],
+    perfilesAsociado: [{ _id: 'i4', user: 'u4' }],
     areas: []
   });
   assert.deepEqual(plan.crearAperturador, ['u2']);
-  assert.deepEqual(plan.crearIncorporador, ['u3']);
+  assert.deepEqual(plan.crearAsociado, ['u3']);
 });
 
 test('reparación: es idempotente (con todo creado no hay nada que hacer)', () => {
   const plan = planificarReparacion({
     usuarios: [{ _id: 'u1', role: 'aperturador' }],
     perfilesAperturador: [{ _id: 'p1', user: 'u1' }],
-    perfilesIncorporador: [],
+    perfilesAsociado: [],
     areas: [{ _id: 'a1', aperturador: 'p1' }]
   });
-  assert.deepEqual(plan, { crearAperturador: [], crearIncorporador: [], reasignarAreas: [], huerfanas: [] });
+  assert.deepEqual(plan, { crearAperturador: [], crearAsociado: [], reasignarAreas: [], huerfanas: [] });
 });
 
 test('reparación: zonas con id de usuario se reasignan al perfil (existente o por crear); otras se reportan', () => {
   const plan = planificarReparacion({
     usuarios: [{ _id: 'u1', role: 'aperturador' }, { _id: 'u2', role: 'aperturador' }],
     perfilesAperturador: [{ _id: 'p1', user: 'u1' }],
-    perfilesIncorporador: [],
+    perfilesAsociado: [],
     areas: [
       { _id: 'a1', aperturador: 'u1' },   // usuario con perfil -> p1
       { _id: 'a2', aperturador: 'u2' },   // usuario sin perfil -> (se creará)

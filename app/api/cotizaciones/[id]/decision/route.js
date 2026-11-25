@@ -5,6 +5,7 @@ import Cotizacion from '@/models/Cotizacion';
 import Cita from '@/models/Cita';
 import { enviarEmailsCitaAceptada } from '@/lib/email-service';
 import { requireSession } from '@/lib/session';
+import { aplicarInicioAceptado } from '@/lib/inicial-citas';
 
 
 // PUT - Aceptar o rechazar una cotización (cliente)
@@ -65,7 +66,8 @@ export async function PUT(request, { params }) {
       if (!cita.cotizaciones.some(c => c.toString() === cotizacion._id.toString())) {
         cita.cotizaciones.push(cotizacion._id);
       }
-      if (fechaProgramada) {
+      // Modelo inicial: el inicio del trabajo es el que se acordó en la cotización; si no traía, el que mande el cliente
+      if (!aplicarInicioAceptado(cita, cotizacion) && fechaProgramada) {
         cita.fechaProgramada = new Date(fechaProgramada);
       }
 

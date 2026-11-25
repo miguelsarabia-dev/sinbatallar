@@ -259,7 +259,7 @@ function Configuracion() {
         ['TECHNICIAN', 'Técnico (% fijo de mano de obra, sale del contratista)'],
         ['PLATFORM', 'Sin Batallar (% de mano de obra)'],
         ['OPENER', 'Aperturador (% de mano de obra)'],
-        ['INCORPORATOR', 'Incorporador (% de mano de obra)']
+        ['ASOCIADO', 'Asociado (% de mano de obra)']
     ];
 
     return (

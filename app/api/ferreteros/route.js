@@ -53,7 +53,7 @@ export async function POST(request) {
   try {
     await connectDB();
 
-    // Auto-registro público permitido, pero queda pendiente de aprobación (solo admin lo deja activo).
+    // Ya no es público (lib/policy.js): solo el admin da de alta ferreterías.
     const session = await getSessionFromRequest(request);
     const esAdmin = session?.role === 'admin';
     const { nombre, email, password, telefono, nombreNegocio, direccion, ubicacion } = await request.json();

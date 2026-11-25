@@ -2,6 +2,7 @@
 // GET /api/citas/pendientes-asignacion?contratistaId=xxx
 // Devuelve citas en estado 'solicitada' sin contratista asignado,
 // filtradas por los servicios que ofrece el contratista y las zonas donde opera.
+import { getModelosConfig } from '@/lib/modelos-config';
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Cita from '@/models/Cita';
@@ -28,6 +29,9 @@ export async function GET(request) {
       );
     }
 
+    // Con el modelo permanente apagado, la bolsa es solo de los especialistas
+    if (!(await getModelosConfig()).permanenteActivo) return NextResponse.json({ total: 0, citas: [] });
+
     const contratista = await Contratista.findById(contratistaId);
     if (!contratista) {
       return NextResponse.json(
@@ -53,6 +57,7 @@ export async function GET(request) {
     const filtro = {
       estado: 'solicitada',
       contratista: null,
+      especialista: null,
       servicio: { $in: contratista.servicios }
     };
 

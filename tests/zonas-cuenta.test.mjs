@@ -18,8 +18,8 @@ test('zonasDe lee areasIds y cae a areaId en cuentas antiguas', () => {
   assert.deepEqual(zonasDe({}), []);
 });
 
-test('solo admin/incorporador cambian zonas; el contratista recibe 403', () => {
-  assert.equal(permisoCambioZona('incorporador', ['a']).ok, true);
+test('solo admin/asociado cambian zonas; el contratista recibe 403', () => {
+  assert.equal(permisoCambioZona('asociado', ['a']).ok, true);
   assert.equal(permisoCambioZona('admin', []).ok, true);
   assert.equal(permisoCambioZona('self', ['a']).status, 403);
   assert.equal(permisoCambioZona('self', undefined).ok, true);
@@ -54,13 +54,13 @@ test('pendiente de liquidar: técnico terminó y el cliente no ha declarado el s
 });
 
 import { permisoCambioServicios, DATOS_REQUERIDOS } from '../lib/datos-incorporacion.js';
-import { CAMPOS_PROPIOS, CAMPOS_INCORPORADOR, CAMPOS_ADMIN } from '../lib/campos-contratista.js';
-test('los servicios los asigna el incorporador/admin, no el contratista', () => {
+import { CAMPOS_PROPIOS, CAMPOS_ASOCIADO, CAMPOS_ADMIN } from '../lib/campos-contratista.js';
+test('los servicios los asigna el asociado/admin, no el contratista', () => {
   assert.equal(permisoCambioServicios('self', ['x']).status, 403);
   assert.equal(permisoCambioServicios('self', undefined).ok, true);
-  assert.equal(permisoCambioServicios('incorporador', ['x']).ok, true);
+  assert.equal(permisoCambioServicios('asociado', ['x']).ok, true);
   assert.ok(!CAMPOS_PROPIOS.includes('servicios') && !CAMPOS_PROPIOS.includes('especialidad'));
-  assert.ok(CAMPOS_INCORPORADOR.includes('servicios') && CAMPOS_ADMIN.includes('servicios'));
+  assert.ok(CAMPOS_ASOCIADO.includes('servicios') && CAMPOS_ADMIN.includes('servicios'));
   assert.ok(DATOS_REQUERIDOS.includes('servicios'));
 });
 

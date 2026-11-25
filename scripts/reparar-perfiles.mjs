@@ -1,6 +1,6 @@
 // scripts/reparar-perfiles.mjs
-// Repara datos antiguos de aperturadores e incorporadores:
-//   1. crea el perfil (Aperturador / Incorporador) de cada usuario con ese rol que no lo tenga
+// Repara datos antiguos de aperturadores y asociados:
+//   1. crea el perfil (Aperturador / Asociado) de cada usuario con ese rol que no lo tenga
 //   2. reasigna las zonas cuyo `aperturador` apunta al id de un USUARIO (app móvil antigua) al id de su perfil
 //   3. convierte a ObjectId los perfiles cuyo `user` quedó guardado como texto
 //   4. (opcional) --asignar-huerfanas-a <email>: asigna a ese aperturador las zonas sin aperturador
@@ -24,7 +24,7 @@ mongoose.set('autoIndex', false);
 mongoose.set('autoCreate', false);
 const { default: User } = await import('../models/User.js');
 const { default: Aperturador } = await import('../models/Aperturador.js');
-const { default: Incorporador } = await import('../models/Incorporador.js');
+const { default: Asociado } = await import('../models/Asociado.js');
 const { default: Area } = await import('../models/Area.js');
 const { default: Configuracion } = await import('../models/Configuracion.js');
 
@@ -76,7 +76,7 @@ async function inspeccionar(valor) {
   const idsObj = usuarios.map(u => u._id);
   const idsTxt = idsObj.map(String);
   const perfiles = [];
-  for (const [coleccion, etiqueta] of [['aperturadors', 'Aperturador'], ['incorporadors', 'Incorporador']]) {
+  for (const [coleccion, etiqueta] of [['aperturadors', 'Aperturador'], ['asociados', 'Asociado']]) {
     const docs = await db.collection(coleccion).find({ $or: [{ user: { $in: idsObj } }, { user: { $in: idsTxt } }] }).toArray();
     console.log(`\n── Perfiles ${etiqueta} cuyo user sea alguno de esos ids (como ObjectId O como texto): ${docs.length}`);
     docs.forEach(d => {
@@ -93,7 +93,7 @@ async function inspeccionar(valor) {
   // Perfiles huérfanos: su `user` no existe en users
   console.log('\n── Perfiles huérfanos (su user no existe)');
   let totalHuerfanos = 0, totalTexto = 0;
-  for (const [coleccion, etiqueta] of [['aperturadors', 'Aperturador'], ['incorporadors', 'Incorporador']]) {
+  for (const [coleccion, etiqueta] of [['aperturadors', 'Aperturador'], ['asociados', 'Asociado']]) {
     const todos = await db.collection(coleccion).find({}, { projection: { user: 1 } }).toArray();
     totalTexto += todos.filter(d => tipo(d.user) === 'string').length;
     const ids = todos.map(d => comoObjectId(d.user)).filter(Boolean);
@@ -115,7 +115,7 @@ async function inspeccionar(valor) {
   });
 
   console.log('\n── Diagnóstico');
-  const conRol = usuarios.filter(u => ['aperturador', 'incorporador'].includes(u.role));
+  const conRol = usuarios.filter(u => ['aperturador', 'asociado', 'incorporador'].includes(u.role));
   if (usuarios.length === 0) console.log('   • No existe ningún usuario con ese dato.');
   if (usuarios.length > 1) console.log('   • Varios usuarios con el mismo dato (cuenta duplicada).');
   if (conRol.length && !perfiles.length) console.log('   • Tiene rol pero ningún perfil enlazado: lo creará la auto-provisión o el script con --aplicar.');
@@ -142,25 +142,25 @@ if (aplicar && baseConfirmada !== nombreBase) {
 // Porcentajes por defecto: los de la configuración financiera si existe, si no 2% y 3%
 const config = (await Configuracion.findOne({ clave: 'financiera' }).lean())?.valor || {};
 const pctAperturador = Number.isFinite(config.OPENER) ? config.OPENER : 2;
-const pctIncorporador = Number.isFinite(config.INCORPORATOR) ? config.INCORPORATOR : 3;
+const pctAsociado = Number.isFinite(config.ASOCIADO) ? config.ASOCIADO : 3;
 
 // Con el driver nativo para ver también los perfiles cuyo `user` está guardado como texto
 const crudos = async (coleccion) => (await db.collection(coleccion).find({}, { projection: { user: 1 } }).toArray());
 const aTexto = (docs) => docs.map(d => ({ _id: d._id, user: String(d.user) }));
 const perfilesAperturadorCrudos = await crudos('aperturadors');
-const perfilesIncorporadorCrudos = await crudos('incorporadors');
+const perfilesAsociadoCrudos = await crudos('asociados');
 
-const usuarios = await User.find({ role: { $in: ['aperturador', 'incorporador'] } }).select('_id role email nombre').lean();
+const usuarios = await User.find({ role: { $in: ['aperturador', 'asociado', 'incorporador'] } }).select('_id role email nombre').lean();
 const plan = planificarReparacion({
   usuarios,
   perfilesAperturador: aTexto(perfilesAperturadorCrudos),
-  perfilesIncorporador: aTexto(perfilesIncorporadorCrudos),
+  perfilesAsociado: aTexto(perfilesAsociadoCrudos),
   areas: await Area.find({ aperturador: { $ne: null } }).select('_id aperturador nombre').lean()
 });
 // Perfiles con `user` como texto (se convierten a ObjectId)
 const perfilesConTexto = [
   ...perfilesAperturadorCrudos.filter(d => tipo(d.user) === 'string').map(d => ({ coleccion: 'aperturadors', ...d })),
-  ...perfilesIncorporadorCrudos.filter(d => tipo(d.user) === 'string').map(d => ({ coleccion: 'incorporadors', ...d }))
+  ...perfilesAsociadoCrudos.filter(d => tipo(d.user) === 'string').map(d => ({ coleccion: 'asociados', ...d }))
 ];
 
 // Zonas sin aperturador y a quién se asignarían (--asignar-huerfanas-a)
@@ -178,11 +178,11 @@ if (emailHuerfanas) {
 
 const etiqueta = (id) => { const u = usuarios.find(x => String(x._id) === id); return u ? `${u.nombre || ''} <${u.email || 'sin email'}>` : id; };
 
-console.log(`\nUsuarios con rol aperturador/incorporador: ${usuarios.length}`);
+console.log(`\nUsuarios con rol aperturador/asociado: ${usuarios.length}`);
 console.log(`Perfiles Aperturador a crear (${pctAperturador}%): ${plan.crearAperturador.length}`);
 plan.crearAperturador.forEach(id => console.log(`  + ${etiqueta(id)}`));
-console.log(`Perfiles Incorporador a crear (${pctIncorporador}%): ${plan.crearIncorporador.length}`);
-plan.crearIncorporador.forEach(id => console.log(`  + ${etiqueta(id)}`));
+console.log(`Perfiles Asociado a crear (${pctAsociado}%): ${plan.crearAsociado.length}`);
+plan.crearAsociado.forEach(id => console.log(`  + ${etiqueta(id)}`));
 console.log(`Perfiles con user guardado como texto a convertir a ObjectId: ${perfilesConTexto.length}`);
 perfilesConTexto.forEach(p => console.log(`  # ${p.coleccion} ${p._id}: user "${p.user}" -> ObjectId`));
 console.log(`Zonas a reasignar de id de usuario a id de perfil: ${plan.reasignarAreas.length}`);
@@ -225,7 +225,7 @@ const upsertPerfil = async (Modelo, userId, porcentaje) => {
   if (r.upsertedCount) creados++;
 };
 for (const id of plan.crearAperturador) await upsertPerfil(Aperturador, id, pctAperturador);
-for (const id of plan.crearIncorporador) await upsertPerfil(Incorporador, id, pctIncorporador);
+for (const id of plan.crearAsociado) await upsertPerfil(Asociado, id, pctAsociado);
 
 // 3) Reasignar zonas (ahora todos los usuarios aperturador ya tienen perfil)
 const perfiles = Object.fromEntries((await Aperturador.find().select('_id user').lean()).map(p => [String(p.user), p._id]));
