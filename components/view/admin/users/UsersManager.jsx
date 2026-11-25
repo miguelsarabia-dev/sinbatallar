@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { FaSync, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
+import { FaSync, FaChevronLeft, FaChevronRight, FaPlus } from 'react-icons/fa';
 import UserSearch from './UserSearch';
 import UserTable from './UserTable';
 import UserDetails from './UserDetails';
 import EditUserForm from './EditUserForm';
+import NuevaCuentaForm from './NuevaCuentaForm';
 
 export default function UsersManager({ 
   onDeleteUser, 
@@ -32,6 +33,7 @@ export default function UsersManager({
   const [editingUser, setEditingUser] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
+  const [showNueva, setShowNueva] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -145,14 +147,23 @@ export default function UsersManager({
             {pagination.total} usuario{pagination.total !== 1 ? 's' : ''} encontrado{pagination.total !== 1 ? 's' : ''}
           </p>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={loading}
-          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50"
-        >
-          <FaSync className={loading ? 'animate-spin' : ''} size={16} />
-          Actualizar
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowNueva(true)}
+            className="px-4 py-2 bg-secondary text-white rounded-lg hover:opacity-90 transition-colors flex items-center gap-2"
+          >
+            <FaPlus size={14} />
+            Nueva cuenta
+          </button>
+          <button
+            onClick={handleRefresh}
+            disabled={loading}
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            <FaSync className={loading ? 'animate-spin' : ''} size={16} />
+            Actualizar
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -237,6 +248,18 @@ export default function UsersManager({
             setShowDetails(false);
             setSelectedUser(null);
           }}
+        />
+      )}
+
+      {showNueva && (
+        <NuevaCuentaForm
+          onClose={() => setShowNueva(false)}
+          onCreada={(cuenta, etiqueta) => {
+            setShowNueva(false);
+            showSuccess(`${etiqueta || 'Cuenta'} creada: ${cuenta.email}${cuenta.rol === 'contratista' ? ' (aparece en Contratistas)' : ''}`);
+            fetchUsers(searchParams, 1);
+          }}
+          showError={showError}
         />
       )}
 

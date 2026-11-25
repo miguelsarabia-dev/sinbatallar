@@ -2,6 +2,10 @@ import { connectDB } from '@/lib/mongoose'
 import User from '@/models/User'
 import Asociado from '@/models/Asociado'
 import Aperturador from '@/models/Aperturador'
+import Tecnico from '@/models/Tecnico'
+import Ferretero from '@/models/Ferretero'
+import Especialista from '@/models/Especialista'
+import Aspirante from '@/models/Aspirante'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcrypt'
 import { enviarEmailBienvenidaCliente } from '@/lib/email-service'
@@ -354,6 +358,9 @@ export async function DELETE(request) {
     try {
         const deleted = await User.findByIdAndDelete(id);
         if (!deleted) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+        // Su perfil de rol (si tiene) se va con la cuenta, para no dejar perfiles huérfanos
+        await Promise.all([Asociado, Aperturador, Tecnico, Ferretero, Especialista, Aspirante]
+            .map(M => M.deleteMany({ user: deleted._id })));
         return NextResponse.json({ message: 'Eliminado' });
     } catch (error) {
         return NextResponse.json({ error: 'Error al eliminar usuario' }, { status: 400 });
