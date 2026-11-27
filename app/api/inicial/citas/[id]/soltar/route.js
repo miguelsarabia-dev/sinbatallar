@@ -25,7 +25,8 @@ export async function POST(request, { params }) {
     const liberada = await Cita.findOneAndUpdate(
       { _id: cita._id, especialista: especialista._id, estado: { $in: ['atendida', 'cotizada'] }, cotizacionAceptada: null },
       {
-        $set: { especialista: null, modelo: null, aspirantes: [], estado: 'solicitada', subestadoTecnico: null, fechaSubestadoTecnico: null },
+        $set: { especialista: null, modelo: null, aspirantes: [], estado: 'solicitada', subestadoTecnico: null, fechaSubestadoTecnico: null,
+                'acuerdoVisita.estado': null, 'acuerdoVisita.propuestaPor': null, 'acuerdoVisita.fechaAcuerdo': null },
         $push: { historial: { estado: 'solicitada', fecha: new Date(), comentario: motivo } }
       },
       { new: true }

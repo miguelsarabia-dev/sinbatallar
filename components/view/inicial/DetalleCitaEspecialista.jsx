@@ -7,6 +7,7 @@ import {
   api, peso, fecha, direccionDe, nombreDe, EstadoCita, SUBESTADO_LABEL, Tarjeta, Boton, Campo, claseInput
 } from './comun';
 import { ChipsSeleccion } from '@/components/ui/ChipsServicios';
+import { ACUERDO, estadoAcuerdo, diaDeVisitaLlegado, visitaNegociable } from '@/lib/inicial-visita';
 
 const MATERIAL_VACIO = { nombre: '', cantidad: 1, precioPorUnidad: '' };
 const IVA = 0.16;
@@ -97,11 +98,60 @@ function FormCotizacion({ citaId, onListo, onAviso }) {
   );
 }
 
+const BOTON_AVANCE = { en_camino: 'Voy en camino', en_sitio: 'Ya llegué', cotizando: 'Cotizando' };
+const cuandoVisita = (c) => `${c.fechaVisita ? fecha(c.fechaVisita) : 'sin fecha'}${c.horaVisita ? ` a las ${c.horaVisita}` : ''}`;
+
+/** Acuerdo de la visita para cotizar con el cliente: aceptar su propuesta o proponer otra fecha. */
+const diaISO = (f) => (f ? new Date(f).toISOString().slice(0, 10) : '');
+
+function VisitaEspecialista({ cita, ocupado, accion }) {
+  const acuerdo = estadoAcuerdo(cita);
+  const [proponer, setProponer] = useState(false);
+  useEffect(() => { setProponer(false); setVisita({ fecha: aDia(cita.fechaVisita), hora: cita.horaVisita || '' }); }, [cita]);
+  const enviar = (body, ok) => accion(() => api(`/api/inicial/citas/${cita._id}/visita`, { method: 'PUT', body }), ok);
+
+  const formulario = (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end mt-3">
+      <Campo label="Día"><input type="date" className={claseInput} value={visita.fecha} min={new Date().toISOString().slice(0, 10)} onChange={e => setVisita(v => ({ ...v, fecha: e.target.value }))} /></Campo>
+      <Campo label="Hora"><input type="time" className={claseInput} value={visita.hora} onChange={e => setVisita(v => ({ ...v, hora: e.target.value }))} /></Campo>
+      <Boton disabled={ocupado || !visita.fecha} onClick={() => enviar({ fechaVisita: visita.fecha, ...(visita.hora ? { horaVisita: visita.hora } : {}) }, 'Propuesta enviada al cliente')}>Proponer al cliente</Boton>
+    </div>
+  );
+
+  return (
+    <Tarjeta titulo="Visita para cotizar">
+      {acuerdo === ACUERDO.PENDIENTE_ESPECIALISTA && (
+        <>
+          <p className="text-sm text-gray-700">El cliente propone el <strong>{cuandoVisita(cita)}</strong>. ¿Puedes ir ese día?</p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <Boton disabled={ocupado || !cita.fechaVisita} onClick={() => enviar({ aceptar: true }, 'Visita acordada: el cliente ya lo sabe')}>Acepto ese día</Boton>
+            <Boton variante="secundario" disabled={ocupado} onClick={() => setProponer(v => !v)}>Proponer otro día</Boton>
+          </div>
+        </>
+      )}
+      {acuerdo === ACUERDO.PENDIENTE_CLIENTE && (
+        <>
+          <p className="text-sm text-gray-700">Propusiste el <strong>{cuandoVisita(cita)}</strong>. Esperando que el cliente acepte o proponga otro día.</p>
+          <Boton className="mt-3" variante="secundario" disabled={ocupado} onClick={() => setProponer(v => !v)}>Cambiar mi propuesta</Boton>
+        </>
+      )}
+      {acuerdo === ACUERDO.ACORDADA && (
+        <>
+          <p className="text-sm text-green-800 bg-green-50 rounded-md px-3 py-2">Visita acordada: <strong>{cuandoVisita(cita)}</strong></p>
+          {visitaNegociable(cita) && (
+            <Boton className="mt-3" variante="secundario" disabled={ocupado} onClick={() => setProponer(v => !v)}>Reprogramar</Boton>
+          )}
+        </>
+      )}
+      {proponer && formulario}
+    </Tarjeta>
+  );
+}
+
 export default function DetalleCitaEspecialista({ cita, aspirantesPropios, onVolver, onRecargar, onAviso }) {
   const [seleccion, setSeleccion] = useState((cita.aspirantes || []).map(a => a._id));
   const [reparto, setReparto] = useState(null);
   const aDia = (f) => (f ? new Date(f).toISOString().slice(0, 10) : '');
-  const [visita, setVisita] = useState({ fecha: aDia(cita.fechaVisita), hora: cita.horaVisita || '' });
   const [agenda, setAgenda] = useState({ fecha: cita.fechaProgramada ? new Date(cita.fechaProgramada).toISOString().slice(0, 10) : '', hora: cita.horaInicio || '' });
   const [ocupado, setOcupado] = useState(false);
   const [recotizar, setRecotizar] = useState(false);
@@ -111,9 +161,11 @@ export default function DetalleCitaEspecialista({ cita, aspirantesPropios, onVol
   const cerrada = cita.estado === 'completada' && cita.pagado;
   const editable = ['atendida', 'cotizada', 'aceptada', 'verificando_pago', 'en_progreso'].includes(cita.estado);
   const anticipoOk = cot && (cot.modalidadPago === 'total' ? cot.pagoUnico?.verificado : cot.anticipo?.verificado);
+  // Antes de cotizar, el avance y la cotización esperan a la visita acordada y a su día
+  const enVisita = cita.estado === 'atendida';
+  const visitaLista = estadoAcuerdo(cita) === ACUERDO.ACORDADA && diaDeVisitaLlegado(cita);
 
   useEffect(() => {
-    setVisita({ fecha: aDia(cita.fechaVisita), hora: cita.horaVisita || '' });
     setAgenda({ fecha: aDia(cita.fechaProgramada), hora: cita.horaInicio || '' });
     setSeleccion((cita.aspirantes || []).map(a => a._id));
     if (cot) api(`/api/inicial/citas/${cita._id}/reparto`).then(setReparto).catch(() => setReparto(null));
@@ -139,7 +191,7 @@ export default function DetalleCitaEspecialista({ cita, aspirantesPropios, onVol
           <p className="text-gray-700">{cita.descripcionProblema}</p>
           <p className="flex items-start gap-2 text-gray-600"><FaMapMarkerAlt className="mt-0.5 shrink-0" />{direccionDe(cita.ubicacion) || 'Sin dirección'}{cita.ubicacion?.referencia ? ` — ${cita.ubicacion.referencia}` : ''}</p>
           <p className="flex items-center gap-2 text-gray-600"><FaPhoneAlt />{cita.cliente?.nombre} · {cita.cliente?.telefono || 'sin teléfono'}</p>
-          <p className="text-gray-600">Visita para cotizar: <strong>{cita.fechaVisita ? fecha(cita.fechaVisita) : 'sin fecha'}</strong>{cita.horaVisita ? ` a las ${cita.horaVisita}` : ''}</p>
+          <p className="text-gray-600">Visita para cotizar: <strong>{cuandoVisita(cita)}</strong>{enVisita && estadoAcuerdo(cita) !== ACUERDO.ACORDADA ? ' (por acordar)' : ''}</p>
           <p className="text-gray-600">Inicio del trabajo: <strong>{cita.fechaProgramada ? fecha(cita.fechaProgramada) : 'por acordar'}</strong>{cita.fechaProgramada && cita.horaInicio ? ` a las ${cita.horaInicio}` : ''}</p>
           {cita.subestadoTecnico && <p className="text-gray-600">Avance: <strong>{SUBESTADO_LABEL[cita.subestadoTecnico]}</strong></p>}
         </div>
@@ -153,30 +205,25 @@ export default function DetalleCitaEspecialista({ cita, aspirantesPropios, onVol
         </Tarjeta>
       )}
 
-      {['atendida', 'cotizada'].includes(cita.estado) && !cot && (
-        <Tarjeta titulo="Visita para cotizar">
-          <p className="text-xs text-gray-500 mb-2">Es el día que propuso el cliente. Confírmalo o ajústalo con él.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-            <Campo label="Día"><input type="date" className={claseInput} value={visita.fecha} onChange={e => setVisita(v => ({ ...v, fecha: e.target.value }))} /></Campo>
-            <Campo label="Hora"><input type="time" className={claseInput} value={visita.hora} onChange={e => setVisita(v => ({ ...v, hora: e.target.value }))} /></Campo>
-            <Boton disabled={ocupado || !visita.fecha} onClick={() => accion(() => api(`/api/inicial/citas/${cita._id}/visita`, {
-              method: 'PUT', body: { fechaVisita: visita.fecha, ...(visita.hora ? { horaVisita: visita.hora } : {}) }
-            }), 'Visita confirmada')}>Confirmar visita</Boton>
-          </div>
-        </Tarjeta>
-      )}
+      {enVisita && <VisitaEspecialista cita={cita} ocupado={ocupado} accion={accion} />}
 
-      {editable && cita.estado !== 'en_progreso' && (
+      {editable && cita.estado !== 'en_progreso' && (!enVisita || visitaLista) && (
         <Tarjeta titulo="Avance">
           <div className="flex flex-wrap gap-2">
             {['en_camino', 'en_sitio', 'cotizando'].map(s => (
               <Boton key={s} variante={cita.subestadoTecnico === s ? 'primario' : 'secundario'} disabled={ocupado}
                 onClick={() => accion(() => api(`/api/inicial/citas/${cita._id}/avance`, { method: 'PATCH', body: { subestado: s } }))}>
-                {SUBESTADO_LABEL[s]}
+                {BOTON_AVANCE[s]}
               </Boton>
             ))}
           </div>
+          {enVisita && <p className="text-xs text-gray-500 mt-2">El cliente ve cada paso en su app.</p>}
         </Tarjeta>
+      )}
+      {enVisita && !visitaLista && (
+        <Tarjeta><p className="text-sm text-gray-600">{estadoAcuerdo(cita) === ACUERDO.ACORDADA
+          ? `El ${cuandoVisita(cita)} podrás marcar que vas en camino, que llegaste y cotizar.`
+          : 'Cuando el cliente y tú acuerden el día de la visita, ese día podrás marcar tu avance y cotizar.'}</p></Tarjeta>
       )}
 
       {enviada && !cot && !recotizar && (
@@ -193,7 +240,7 @@ export default function DetalleCitaEspecialista({ cita, aspirantesPropios, onVol
         </Tarjeta>
       )}
 
-      {['atendida', 'cotizada'].includes(cita.estado) && !cot && (!enviada || recotizar) && (
+      {['atendida', 'cotizada'].includes(cita.estado) && !cot && (!enviada || recotizar) && (!enVisita || visitaLista) && (
         <Tarjeta titulo={enviada ? 'Nueva cotización (reemplaza la enviada)' : 'Cotizar en sitio'}
           accion={enviada && <Boton variante="secundario" onClick={() => setRecotizar(false)}>Cancelar</Boton>}>
           <FormCotizacion citaId={cita._id} onListo={async () => { setRecotizar(false); await onRecargar(); }} onAviso={onAviso} />

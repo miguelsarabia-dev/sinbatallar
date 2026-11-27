@@ -24,7 +24,14 @@ function Disponibles({ citas, onTomar, ocupado, perfil }) {
           <p className="text-xs text-gray-500 mt-2">{[c.ubicacion?.colonia, c.ubicacion?.municipio].filter(Boolean).join(', ') || 'Ubicación en tu zona'}</p>
           <p className="text-xs text-gray-500">Solicitada {fecha(c.createdAt, true)}</p>
           <p className="text-sm text-sky-800 bg-sky-50 rounded-md px-2 py-1 mt-1">Visita para cotizar: <strong>{c.fechaVisita ? fecha(c.fechaVisita) : 'a acordar'}</strong>{c.horaVisita ? ` · ${c.horaVisita}` : ''}</p>
-          <Boton className="mt-3 w-full" disabled={ocupado} onClick={() => onTomar(c)}>Tomar servicio</Boton>
+          {c.fechaVisita ? (
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Boton disabled={ocupado} onClick={() => onTomar(c, true)}>Tomar y aceptar el día</Boton>
+              <Boton variante="secundario" disabled={ocupado} onClick={() => onTomar(c, false)}>Tomar y proponer otro</Boton>
+            </div>
+          ) : (
+            <Boton className="mt-3 w-full" disabled={ocupado} onClick={() => onTomar(c, false)}>Tomar y proponer día</Boton>
+          )}
         </Tarjeta>
       ))}
     </div>
@@ -228,11 +235,14 @@ export default function EspecialistaDashboard() {
     return () => clearInterval(t);
   }, [cargar]);
 
-  const tomar = async (cita) => {
+  // aceptarVisita: acepta el día que pidió el cliente; si no, la toma y propone otro día en el detalle
+  const tomar = async (cita, aceptarVisita) => {
     setOcupado(true);
     try {
-      const r = await api(`/api/inicial/citas/${cita._id}/tomar`, { method: 'POST', body: {} });
-      setAviso({ tipo: 'ok', texto: 'Servicio tomado. Elige a tus aspirantes y coordina la visita para cotizar.' });
+      const r = await api(`/api/inicial/citas/${cita._id}/tomar`, { method: 'POST', body: aceptarVisita ? { aceptarVisita: true } : {} });
+      setAviso({ tipo: 'ok', texto: aceptarVisita
+        ? 'Servicio tomado y visita acordada: el cliente ya lo sabe. Elige a tus aspirantes.'
+        : 'Servicio tomado. Propón al cliente el día de la visita para cotizar.' });
       await cargar();
       setAbierta(r.cita?._id || cita._id);
       setSeccion('servicios');
