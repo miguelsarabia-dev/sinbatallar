@@ -9,6 +9,7 @@ import PaymentModal from '../../ui/PaymentModal';
 import PagoClienteCita from '../../pagos/PagoClienteCita';
 import HistorialPagosCliente from '../../pagos/HistorialPagosCliente';
 import CotizacionCliente from './CotizacionCliente';
+import VisitaCliente from './VisitaCliente';
 import ImageViewer from '../../extra/ImageViewer';
 
 export default function CitasCliente() {
@@ -37,9 +38,11 @@ export default function CitasCliente() {
   });
 
   useEffect(() => {
-    if (session?.user) {
-      cargarCitas();
-    }
+    if (!session?.user) return;
+    cargarCitas();
+    // Refresco silencioso cada 30 s: el cliente ve la visita acordada, "va en camino", la cotización, etc.
+    const t = setInterval(() => cargarCitas({ silencioso: true }), 30000);
+    return () => clearInterval(t);
   }, [session, filtroEstado]);
 
   // Detectar citas completadas o canceladas sin calificar y abrir modal automáticamente
@@ -81,9 +84,9 @@ export default function CitasCliente() {
     }
   }, [citas?.length, modalCalificacion.isOpen, modalCalificacion.cita?._id]);
 
-  const cargarCitas = async () => {
+  const cargarCitas = async ({ silencioso = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silencioso) setLoading(true);
       const clienteId = session.user.id || session.user._id;
       const params = new URLSearchParams({ clienteId });
       if (filtroEstado !== 'todas' && filtroEstado !== 'activas') {
@@ -397,13 +400,7 @@ export default function CitasCliente() {
                       <p className="text-sm text-foreground font-bold line-clamp-2">{cita.descripcionProblema}</p>
                     </div>
 
-                    {cita.fechaVisita && (
-                      <div className="bg-sky-50 rounded-lg p-2.5 sm:p-3 border border-sky-200 text-xs sm:text-sm flex items-center gap-2">
-                        <FaCalendarAlt className="text-sky-600 flex-shrink-0" />
-                        <span><span className="text-slate-600">Visita para cotizar:</span>{' '}
-                          <span className="font-bold text-foreground">{new Date(cita.fechaVisita).toLocaleDateString('es-MX')}{cita.horaVisita ? ` · ${cita.horaVisita}` : ''}</span></span>
-                      </div>
-                    )}
+                    <VisitaCliente cita={cita} onCambio={() => cargarCitas({ silencioso: true })} showSuccess={showSuccess} showError={showError} />
 
                     {cita.fechaProgramada && (
                       <div className="bg-amber-50 rounded-lg p-2.5 sm:p-3 border border-amber-200">

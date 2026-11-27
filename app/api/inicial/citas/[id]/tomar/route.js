@@ -1,13 +1,17 @@
 // POST /api/inicial/citas/[id]/tomar — el especialista toma una cita ABIERTA de sus zonas y servicios.
 // Es atómico: la toma el primero que acepta (especialista o, si el permanente está activo, contratista).
-// Body opcional: { aspirantes: [id, id] (máximo 2, de los suyos), fechaVisita?, horaVisita? } — se pueden ajustar después.
+// Body opcional: { aspirantes: [id, id] (máximo 2, de los suyos),
+//                 aceptarVisita?: true            → acepta el día que pidió el cliente (visita acordada)
+//                 fechaVisita?, horaVisita?       → propone otro día (le toca al cliente aceptarlo) }
+// Sin aceptarVisita ni fechaVisita, la toma y la visita queda pendiente de su respuesta (lib/inicial-visita.js).
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import { requireSession } from '@/lib/session';
 import Cita from '@/models/Cita';
 import Aspirante from '@/models/Aspirante';
 import { esObjectId } from '@/lib/sanitize';
-import { puedeTomar, validarAspirantes, validarFechaHora } from '@/lib/inicial-citas';
+import { puedeTomar, validarAspirantes } from '@/lib/inicial-citas';
+import { acuerdoAlTomar } from '@/lib/inicial-visita';
 import { especialistaDeLaPeticion } from '@/lib/inicial-rutas';
 import { contactoEspecialista, poblarCitaInicial } from '@/lib/inicial-citas-db';
 import { enviarNotificacionCambioEstado } from '@/lib/email-service';
@@ -22,7 +26,7 @@ export async function POST(request, { params }) {
 
     const { id } = await params;
     if (!esObjectId(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
-    const actual = await Cita.findById(id).select('estado contratista especialista servicio ubicacion').lean();
+    const actual = await Cita.findById(id).select('estado contratista especialista servicio ubicacion fechaVisita horaVisita').lean();
     if (!actual) return NextResponse.json({ error: 'Cita no encontrada' }, { status: 404 });
 
     const permiso = puedeTomar(actual, especialista);
@@ -37,22 +41,24 @@ export async function POST(request, { params }) {
       aspirantes = r.aspirantes;
     }
 
-    // Opcional: el especialista confirma o ajusta la visita para cotizar al tomarla
-    const visita = {};
-    if (body.fechaVisita !== undefined) {
-      const f = validarFechaHora({ fecha: body.fechaVisita, hora: body.horaVisita }, { etiqueta: 'Fecha de visita' });
-      if (!f.ok) return NextResponse.json({ error: f.error }, { status: 400 });
-      visita.fechaVisita = f.fecha;
-      if (f.hora) visita.horaVisita = f.hora;
-    }
+    // La visita para cotizar: acepta el día del cliente, propone otro o contesta después
+    const visita = acuerdoAlTomar({ cita: actual, aceptarVisita: body.aceptarVisita, fechaVisita: body.fechaVisita, horaVisita: body.horaVisita });
+    if (!visita.ok) return NextResponse.json({ error: visita.error }, { status: visita.status });
 
     const contacto = await contactoEspecialista(especialista._id);
     // Atómico: solo si sigue abierta
     const cita = await Cita.findOneAndUpdate(
       { _id: id, estado: 'solicitada', contratista: null, especialista: null },
       {
-        $set: { especialista: especialista._id, modelo: 'inicial', aspirantes, estado: 'atendida', ...visita },
-        $push: { historial: { estado: 'atendida', fecha: new Date(), comentario: `Cita tomada por el especialista ${contacto?.nombre || ''}`.trim() } }
+        $set: { especialista: especialista._id, modelo: 'inicial', aspirantes, estado: 'atendida', subestadoTecnico: null, ...visita.set },
+        $push: {
+          historial: {
+            $each: [
+              { estado: 'atendida', fecha: new Date(), comentario: `Cita tomada por el especialista ${contacto?.nombre || ''}`.trim() },
+              ...(visita.comentario ? [{ estado: 'atendida', fecha: new Date(), comentario: visita.comentario }] : [])
+            ]
+          }
+        }
       },
       { new: true }
     );

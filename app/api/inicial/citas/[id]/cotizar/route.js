@@ -10,6 +10,7 @@ import Cotizacion from '@/models/Cotizacion';
 import Cita from '@/models/Cita';
 import { armarCotizacion, ESTADOS_COTIZABLES } from '@/lib/inicial-citas';
 import { citaDelEspecialista } from '@/lib/inicial-rutas';
+import { puedeCotizarVisita } from '@/lib/inicial-visita';
 import { marcarCotizada } from '@/lib/citas-estado';
 import { contactoEspecialista, poblarCitaInicial } from '@/lib/inicial-citas-db';
 import { enviarNotificacionCambioEstado } from '@/lib/email-service';
@@ -24,6 +25,9 @@ export async function POST(request, { params }) {
     if (!ESTADOS_COTIZABLES.includes(cita.estado) || cita.cotizacionAceptada) {
       return NextResponse.json({ error: 'Esta cita ya no se puede cotizar' }, { status: 409 });
     }
+    // La primera cotización se hace en la visita: acordada y ese día
+    const visita = puedeCotizarVisita(cita);
+    if (!visita.ok) return NextResponse.json({ error: visita.error }, { status: visita.status });
 
     const body = await request.json().catch(() => ({}));
     const r = armarCotizacion(body);

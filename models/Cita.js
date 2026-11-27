@@ -29,6 +29,13 @@ const citaSchema = new mongoose.Schema({
   // o ajusta el especialista. Se guarda aparte para no perderla cuando se agenda el inicio del trabajo.
   fechaVisita: { type: Date, default: null },
   horaVisita: { type: String, trim: true, default: null },
+  // Acuerdo de la visita entre el cliente y el especialista (lib/inicial-visita.js). fechaVisita/horaVisita son la
+  // propuesta vigente; quien la recibe la acepta o propone otra hasta que los dos estén de acuerdo.
+  acuerdoVisita: {
+    estado: { type: String, enum: ['pendiente_cliente', 'pendiente_especialista', 'acordada', null], default: null },
+    propuestaPor: { type: String, enum: ['cliente', 'especialista', null], default: null },
+    fechaAcuerdo: { type: Date, default: null }
+  },
 
   // Ubicación del servicio
   ubicacion: {
