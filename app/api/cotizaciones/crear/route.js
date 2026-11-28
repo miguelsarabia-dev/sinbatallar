@@ -1,4 +1,5 @@
 // app/api/cotizaciones/crear/route.js
+import { aplicarDesglose, manoDeObraDesdeBody } from '@/lib/cotizador-db';
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Cotizacion from '@/models/Cotizacion';
@@ -39,6 +40,10 @@ export async function POST(request) {
       descripcion,
       imagenesCotizacion = []
     } = data;
+
+    // Cotizador por especialidad: con data.desglose la mano de obra se calcula con la tarifa fija del catálogo
+    const desglose = await manoDeObraDesdeBody(data);
+    if (!desglose.ok) return NextResponse.json({ error: desglose.error }, { status: 400 });
 
     // Si la crea un técnico → pasa primero por revisión del contratista (no visible al cliente).
     // Si la crea el contratista directamente → nace visible al cliente.
@@ -111,6 +116,7 @@ export async function POST(request) {
       cotizacion.descripcionTrabajo = descripcion || '';
       cotizacion.tecnico = tecnicoId || cotizacion.tecnico;
       cotizacion.estado = estadoInicial;
+      aplicarDesglose(cotizacion, desglose.cambios);
 
       if (imagenesCotizacion.length > 0) {
         cotizacion.imagenesCotizacion = imagenesCotizacion;
@@ -130,6 +136,7 @@ export async function POST(request) {
         imagenesCotizacion,
         estado: estadoInicial
       });
+      aplicarDesglose(cotizacion, desglose.cambios);
 
       await cotizacion.save();
 
@@ -169,6 +176,7 @@ export async function POST(request) {
         subtotal: cotizacion.subtotal,
         iva: cotizacion.iva,
         manoDeObra: cotizacion.manoDeObra,
+        desgloseManoObra: cotizacion.desgloseManoObra,
         costoMateriales: cotizacion.costoMateriales,
         descripcionTrabajo: cotizacion.descripcionTrabajo,
         estado: cotizacion.estado,

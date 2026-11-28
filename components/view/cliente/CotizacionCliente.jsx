@@ -4,6 +4,9 @@
 import { useState } from 'react';
 import { FaCheck, FaTimes, FaClock, FaDollarSign, FaTools, FaExclamationTriangle, FaCamera } from 'react-icons/fa';
 import ImageViewer from '../../extra/ImageViewer';
+import { desgloseParaCliente } from '@/lib/cotizador';
+
+const peso = (n) => `$${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function CotizacionCliente({ cotizacion, cita, onAceptar, onRechazar, isLoading = false }) {
   const [showRejectForm, setShowRejectForm] = useState(false);
@@ -133,39 +136,62 @@ export default function CotizacionCliente({ cotizacion, cita, onAceptar, onRecha
           <h4 className="font-medium text-gray-900 mb-4 flex items-center gap-2">
             <FaDollarSign className="text-gray-600" />
             Desglose de Costos
+            {cotizacion._id && (
+              <a href={`/api/cotizaciones/${cotizacion._id}/documento`} target="_blank" rel="noopener noreferrer"
+                className="ml-auto text-sm font-semibold text-secondary underline">Descargar PDF</a>
+            )}
           </h4>
 
-          {/* Mano de obra */}
-          <div className="space-y-3 mb-4">
-            <div className="flex justify-between items-center py-2">
-              <span className="text-gray-700">Mano de obra</span>
-              <span className="font-medium text-gray-900">
-                ${(cotizacion.manoDeObra || 0).toLocaleString()}
-              </span>
-            </div>
-
-            {/* Materiales si existen */}
-            {cotizacion.materiales && cotizacion.materiales.length > 0 && (
-              <div className="border-t pt-3">
-                <div className="text-sm font-medium text-gray-700 mb-2">Materiales:</div>
-                {cotizacion.materiales.map((material, index) => {
-                  const cantidad = parseFloat(material.cantidad) || 0;
-                  // Usar el formato correcto del modelo
-                  const totalMaterial = material.total || ((material.precioPorUnidad || material.precio || 0) * cantidad);
-                  return (
-                    <div key={index} className="flex justify-between text-sm py-1 pl-4">
-                      <span className="text-gray-600">
-                        {material.nombre} (x{cantidad})
-                      </span>
-                      <span className="text-gray-900">
-                        ${totalMaterial.toLocaleString()}
-                      </span>
+          {/* Mano de obra: por trabajo y especialidad si viene desglosada (cotizador), si no una sola línea.
+              Materiales a su precio, con descripción, subtotal y total con IVA. */}
+          {(() => {
+            const d = desgloseParaCliente(cotizacion);
+            return (
+              <div className="space-y-3 mb-4">
+                <div>
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-gray-900 font-medium">Mano de obra</span>
+                    <span className="font-medium text-gray-900">{peso(cotizacion.manoDeObra)}</span>
+                  </div>
+                  {d.manoDeObra.grupos.map(g => (
+                    <div key={g.especialidad} className="pl-3 mb-2">
+                      <p className="text-xs font-semibold text-secondary uppercase tracking-wide">{g.especialidad}</p>
+                      {g.conceptos.map((c, i) => (
+                        <div key={i} className="flex justify-between gap-3 text-sm py-0.5">
+                          <span className="text-gray-700">{c.concepto} <span className="text-gray-500">· {c.cantidad} {c.unidad}</span>
+                            {c.nota && <span className="block text-xs text-gray-500">{c.nota}</span>}</span>
+                          <span className="text-gray-900 tabular-nums">{peso(c.importe)}</span>
+                        </div>
+                      ))}
+                      {d.manoDeObra.grupos.length > 1 && (
+                        <div className="flex justify-between text-xs text-gray-600 border-t border-dashed border-gray-300 mt-1 pt-1">
+                          <span>Subtotal {g.especialidad}</span><span className="tabular-nums">{peso(g.importe)}</span>
+                        </div>
+                      )}
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
+
+                {d.materiales.lineas.length > 0 && (
+                  <div className="border-t pt-3">
+                    <div className="flex justify-between text-sm font-medium text-gray-900 mb-2">
+                      <span>Materiales</span><span className="tabular-nums">{peso(d.materiales.total)}</span>
+                    </div>
+                    {d.materiales.lineas.map((m, index) => (
+                      <div key={index} className="text-sm py-1 pl-3 border-b border-gray-100">
+                        <div className="flex justify-between gap-3">
+                          <span className="text-gray-800">{m.nombre}</span>
+                          <span className="text-gray-900 tabular-nums">{peso(m.subtotal)}</span>
+                        </div>
+                        {m.descripcion && <p className="text-xs text-gray-500">{m.descripcion}</p>}
+                        <p className="text-xs text-gray-500 tabular-nums">{m.cantidad} × {peso(m.precioPorUnidad)} · con IVA {peso(m.total)}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })()}
 
           {/* Totales finales con formato de la imagen */}
           <div className="border-t pt-4 space-y-3">

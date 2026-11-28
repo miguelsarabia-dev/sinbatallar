@@ -460,6 +460,11 @@ export default function CotizacionesContratista({ contratistaId }) {
                     </div>
                   )}
 
+                  {!['pendiente'].includes(cotizacion.estado) && (
+                    <a href={`/api/cotizaciones/${cotizacion._id}/documento`} target="_blank" rel="noopener noreferrer"
+                      className="inline-block mt-2 text-sm font-semibold underline text-secondary">Ver desglose / PDF</a>
+                  )}
+
                   {/* Mostrar materiales si los hay */}
                   {cotizacion.materiales && cotizacion.materiales.length > 0 && (
                     <div className="mt-3">

@@ -3,6 +3,8 @@
 // la reemplaza. Pago: 50% de anticipo y 50% de saldo (o el total, si el cliente lo elige al aceptar).
 // Body: { descripcionTrabajo?, manoDeObra, materiales?: [{ nombre, cantidad, precioPorUnidad, descripcion? }],
 //         fechaInicio?, horaInicio? }  <- día acordado para EMPEZAR el trabajo; el cliente lo acepta con el precio
+//       desglose?: [{ conceptoId, cantidad, factor?, justificacion?, nota? }] <- cotizador por especialidad: si viene,
+//                  la mano de obra se calcula con la tarifa fija del catálogo (lib/cotizador.js) y manoDeObra se ignora
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import { requireSession } from '@/lib/session';
@@ -11,6 +13,7 @@ import Cita from '@/models/Cita';
 import { armarCotizacion, ESTADOS_COTIZABLES } from '@/lib/inicial-citas';
 import { citaDelEspecialista } from '@/lib/inicial-rutas';
 import { puedeCotizarVisita } from '@/lib/inicial-visita';
+import { manoDeObraDesdeBody } from '@/lib/cotizador-db';
 import { marcarCotizada } from '@/lib/citas-estado';
 import { contactoEspecialista, poblarCitaInicial } from '@/lib/inicial-citas-db';
 import { enviarNotificacionCambioEstado } from '@/lib/email-service';
@@ -30,7 +33,9 @@ export async function POST(request, { params }) {
     if (!visita.ok) return NextResponse.json({ error: visita.error }, { status: visita.status });
 
     const body = await request.json().catch(() => ({}));
-    const r = armarCotizacion(body);
+    const desglose = await manoDeObraDesdeBody(body);
+    if (!desglose.ok) return NextResponse.json({ error: desglose.error }, { status: 400 });
+    const r = armarCotizacion({ ...body, ...(desglose.cambios?.manoDeObra ? { manoDeObra: desglose.cambios.manoDeObra } : {}) });
     if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
 
     // La nueva reemplaza a la que el cliente aún no contestaba
@@ -42,6 +47,7 @@ export async function POST(request, { params }) {
     const mitad = Math.round((r.cotizacion.total / 2) * 100) / 100;
     const cotizacion = await Cotizacion.create({
       ...r.cotizacion,
+      ...(desglose.cambios?.desgloseManoObra?.length ? { desgloseManoObra: desglose.cambios.desgloseManoObra, versionCotizador: desglose.cambios.versionCotizador } : {}),
       cita: cita._id,
       especialista: especialista._id,
       estado: 'enviada',

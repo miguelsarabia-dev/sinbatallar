@@ -21,6 +21,7 @@ import UsersManager from './users/UsersManager';
 import ContratistasManager from './contratistas/ContratistasManager';
 import FinanzasDashboard from './finanzas/FinanzasDashboard';
 import ModeloInicialAdmin from './inicial/ModeloInicialAdmin';
+import TarifasCotizador from './TarifasCotizador';
 import PagosAdmin from './pagos/PagosAdmin';
 import TecnicosAdmin from './tecnicos/TecnicosAdmin';
 import SolicitudesMaterialAdmin from './solicitudes/SolicitudesMaterialAdmin';
@@ -1599,6 +1600,7 @@ export default function AdminDashboard() {
       icon: <FaClipboardList />,
       count: cotizaciones.length
     },
+    { key: 'tarifas-cotizador', label: 'Tarifas del cotizador', icon: <FaChartBar />, count: null },
     {
       key: 'citas',
       label: 'Citas',
@@ -1824,6 +1826,9 @@ export default function AdminDashboard() {
 
       case 'modelo-inicial':
         return <ModeloInicialAdmin asociados={asociados} />;
+
+      case 'tarifas-cotizador':
+        return <TarifasCotizador showError={showError} showSuccess={showSuccess} />;
 
       case 'finanzas':
         return <FinanzasDashboard />;
