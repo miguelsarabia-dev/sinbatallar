@@ -7,9 +7,10 @@ import {
   api, peso, fecha, direccionDe, nombreDe, EstadoCita, SUBESTADO_LABEL, Tarjeta, Boton, Campo, claseInput
 } from './comun';
 import { ChipsSeleccion } from '@/components/ui/ChipsServicios';
+import DesgloseManoObra from '@/components/cotizador/DesgloseManoObra';
 import { ACUERDO, estadoAcuerdo, diaDeVisitaLlegado, visitaNegociable } from '@/lib/inicial-visita';
 
-const MATERIAL_VACIO = { nombre: '', cantidad: 1, precioPorUnidad: '' };
+const MATERIAL_VACIO = { nombre: '', descripcion: '', cantidad: 1, precioPorUnidad: '' };
 const IVA = 0.16;
 
 function Totales({ manoDeObra, materiales }) {
@@ -27,9 +28,11 @@ function Totales({ manoDeObra, materiales }) {
   );
 }
 
-function FormCotizacion({ citaId, onListo, onAviso }) {
+function FormCotizacion({ citaId, servicioId, onListo, onAviso }) {
   const [descripcionTrabajo, setDescripcion] = useState('');
   const [manoDeObra, setManoDeObra] = useState('');
+  // null = mano de obra a mano; lista = desglosada con el cotizador (la mano de obra es la suma)
+  const [desglose, setDesglose] = useState(null);
   const [materiales, setMateriales] = useState([]);
   const [inicio, setInicio] = useState({ fecha: '', hora: '' });
   const [enviando, setEnviando] = useState(false);
@@ -44,7 +47,7 @@ function FormCotizacion({ citaId, onListo, onAviso }) {
         method: 'POST',
         body: {
           descripcionTrabajo,
-          manoDeObra: Number(manoDeObra),
+          ...(desglose ? { desglose } : { manoDeObra: Number(manoDeObra) }),
           materiales: materiales.filter(m => m.nombre.trim()).map(m => ({ ...m, cantidad: Number(m.cantidad), precioPorUnidad: Number(m.precioPorUnidad) })),
           ...(inicio.fecha ? { fechaInicio: inicio.fecha, ...(inicio.hora ? { horaInicio: inicio.hora } : {}) } : {})
         }
@@ -64,9 +67,22 @@ function FormCotizacion({ citaId, onListo, onAviso }) {
         <textarea className={claseInput} rows={3} value={descripcionTrabajo} onChange={e => setDescripcion(e.target.value)}
           placeholder="Ej. Pintar sala y comedor, 45 m², dos manos" />
       </Campo>
-      <Campo label="Mano de obra (sin IVA)" ayuda="Es la base del reparto. Los materiales van aparte.">
-        <input type="number" min="1" step="0.01" required className={claseInput} value={manoDeObra} onChange={e => setManoDeObra(e.target.value)} />
-      </Campo>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-sm font-medium text-gray-700">Mano de obra (sin IVA)</span>
+          <Boton variante="secundario" onClick={() => { if (desglose) { setDesglose(null); setManoDeObra(''); } else setDesglose([]); }}>
+            {desglose ? 'Capturar a mano' : 'Desglosar'}
+          </Boton>
+        </div>
+        {desglose ? (
+          <DesgloseManoObra servicioId={servicioId} lineas={desglose} onChange={(ls, total) => { setDesglose(ls); setManoDeObra(total ? String(total) : ''); }} />
+        ) : (
+          <>
+            <input type="number" min="1" step="0.01" required className={claseInput} value={manoDeObra} onChange={e => setManoDeObra(e.target.value)} />
+            <p className="text-xs text-gray-500 mt-1">Es la base del reparto. Con "Desglosar" la calculas por trabajo (m², piezas…) con el catálogo y el cliente ve el detalle.</p>
+          </>
+        )}
+      </div>
       <div>
         <div className="flex items-center justify-between mb-1">
           <span className="text-sm font-medium text-gray-700">Materiales</span>
@@ -80,6 +96,7 @@ function FormCotizacion({ citaId, onListo, onAviso }) {
               <input aria-label="Cantidad" type="number" min="0.01" step="0.01" className={`${claseInput} col-span-2`} value={m.cantidad} onChange={e => cambiarMaterial(i, 'cantidad', e.target.value)} />
               <input aria-label="Precio por unidad" type="number" min="0" step="0.01" className={`${claseInput} col-span-3`} placeholder="$ c/u" value={m.precioPorUnidad} onChange={e => cambiarMaterial(i, 'precioPorUnidad', e.target.value)} />
               <button type="button" aria-label="Quitar material" className="col-span-1 text-red-500" onClick={() => setMateriales(ms => ms.filter((_, j) => j !== i))}><FaTrash /></button>
+              <input aria-label="Descripción del material" className={`${claseInput} col-span-11`} placeholder="Descripción (marca, medida, color…)" value={m.descripcion || ''} onChange={e => cambiarMaterial(i, 'descripcion', e.target.value)} />
             </div>
           ))}
         </div>
@@ -97,6 +114,12 @@ function FormCotizacion({ citaId, onListo, onAviso }) {
     </form>
   );
 }
+
+/** Abre el documento de la cotización desglosada (se guarda como PDF desde el navegador). */
+const VerPdf = ({ id }) => id ? (
+  <a href={`/api/cotizaciones/${id}/documento`} target="_blank" rel="noopener noreferrer"
+    className="inline-block text-sm font-semibold text-secondary underline mt-2">Ver desglose / PDF</a>
+) : null;
 
 const BOTON_AVANCE = { en_camino: 'Voy en camino', en_sitio: 'Ya llegué', cotizando: 'Cotizando' };
 const cuandoVisita = (c) => `${c.fechaVisita ? fecha(c.fechaVisita) : 'sin fecha'}${c.horaVisita ? ` a las ${c.horaVisita}` : ''}`;
@@ -237,13 +260,14 @@ export default function DetalleCitaEspecialista({ cita, aspirantesPropios, onVol
           </dl>
           <p className="text-sm mt-2">Inicio del trabajo propuesto: <strong>{enviada.fechaInicioPropuesta ? `${fecha(enviada.fechaInicioPropuesta)}${enviada.horaInicioPropuesta ? ' a las ' + enviada.horaInicioPropuesta : ''}` : 'por acordar'}</strong></p>
           <p className="text-xs text-gray-500 mt-1">Enviada {fecha(enviada.createdAt, true)}. Cuando el cliente la acepte, el día de inicio queda guardado.</p>
+          <VerPdf id={enviada._id} />
         </Tarjeta>
       )}
 
       {['atendida', 'cotizada'].includes(cita.estado) && !cot && (!enviada || recotizar) && (!enVisita || visitaLista) && (
         <Tarjeta titulo={enviada ? 'Nueva cotización (reemplaza la enviada)' : 'Cotizar en sitio'}
           accion={enviada && <Boton variante="secundario" onClick={() => setRecotizar(false)}>Cancelar</Boton>}>
-          <FormCotizacion citaId={cita._id} onListo={async () => { setRecotizar(false); await onRecargar(); }} onAviso={onAviso} />
+          <FormCotizacion citaId={cita._id} servicioId={cita.servicio?._id} onListo={async () => { setRecotizar(false); await onRecargar(); }} onAviso={onAviso} />
         </Tarjeta>
       )}
 
@@ -265,6 +289,7 @@ export default function DetalleCitaEspecialista({ cita, aspirantesPropios, onVol
               )}
             </div>
           )}
+          <VerPdf id={cot._id} />
         </Tarjeta>
       )}
 

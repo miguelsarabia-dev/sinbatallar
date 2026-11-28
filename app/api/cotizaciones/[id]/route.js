@@ -1,5 +1,6 @@
 // app/api/cotizaciones/[id]/route.js
 import { aplicarInicioAceptado } from '@/lib/inicial-citas';
+import { aplicarDesglose, manoDeObraDesdeBody } from '@/lib/cotizador-db';
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Cotizacion from '@/models/Cotizacion';
@@ -173,6 +174,10 @@ export async function PUT(request, { params }) {
         cotizacion[campo] = data[campo];
       }
     });
+    // Cotizador por especialidad (si viene desglose, la mano de obra sale del catálogo)
+    const desglosePut = await manoDeObraDesdeBody(data);
+    if (!desglosePut.ok) return NextResponse.json({ error: desglosePut.error }, { status: 400 });
+    aplicarDesglose(cotizacion, desglosePut.cambios);
 
     await cotizacion.save();
 
@@ -292,6 +297,10 @@ export async function PATCH(request, { params }) {
 
       // estado === 'enviada': el contratista aprueba (opcionalmente editando)
       if (body.manoDeObra !== undefined) cotizacion.manoDeObra = parseFloat(body.manoDeObra) || 0;
+      // El contratista puede aprobar el desglose del técnico tal cual, o mandar uno nuevo
+      const desglosePatch = await manoDeObraDesdeBody(body);
+      if (!desglosePatch.ok) return NextResponse.json({ error: desglosePatch.error }, { status: 400 });
+      aplicarDesglose(cotizacion, desglosePatch.cambios);
       if (body.descripcion !== undefined) cotizacion.descripcionTrabajo = body.descripcion;
       if (Array.isArray(body.materiales)) {
         cotizacion.materiales = body.materiales.map(m => ({

@@ -1,4 +1,5 @@
 // app/api/cotizaciones/[id]/responder/route.js
+import { aplicarDesglose, manoDeObraDesdeBody } from '@/lib/cotizador-db';
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongoose';
 import Cotizacion from '@/models/Cotizacion';
@@ -71,6 +72,9 @@ export async function PUT(request, { params }) {
     cotizacion.descripcionTrabajo = descripcionTrabajo;
     cotizacion.materiales = materialesFormateados;
     cotizacion.manoDeObra = parseFloat(manoDeObra) || 0;
+    const desglose = await manoDeObraDesdeBody(data);
+    if (!desglose.ok) return NextResponse.json({ error: desglose.error }, { status: 400 });
+    aplicarDesglose(cotizacion, desglose.cambios);
     cotizacion.estado = 'enviada';
     cotizacion.fechaEnvio = new Date();
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
+import DesgloseManoObra, { lineasDeCotizacion } from '@/components/cotizador/DesgloseManoObra';
 import {
   FaCheckCircle,
   FaMoneyBillWave,
@@ -203,6 +204,8 @@ export default function GestionCitas({
       setCotizacionAEditar(cotizacionExistente);
       setFormCotizacion({
         manoDeObra: cotizacionExistente.manoDeObra || '',
+        // Cotizador por especialidad: null = mano de obra a mano
+        desglose: cotizacionExistente.desgloseManoObra?.length ? lineasDeCotizacion(cotizacionExistente) : null,
         descripcionTrabajo: cotizacionExistente.descripcionTrabajo || '',
 
         materiales: cotizacionExistente.materiales || [],
@@ -214,6 +217,7 @@ export default function GestionCitas({
       setCotizacionAEditar(null);
       setFormCotizacion({
         manoDeObra: '',
+        desglose: null,
         descripcionTrabajo: '',
 
         materiales: [],
@@ -231,6 +235,7 @@ export default function GestionCitas({
     setCotizacionAEditar(null);
     setFormCotizacion({
       manoDeObra: '',
+      desglose: null,
       descripcionTrabajo: '',
 
       materiales: [],
@@ -324,6 +329,7 @@ export default function GestionCitas({
         const precioPorUnidad = parseFloat(material.precio) || parseFloat(material.precioPorUnidad) || 0;
         return {
           nombre: material.nombre,
+          descripcion: material.descripcion || '',
           cantidad: cantidad,
           precioPorUnidad: precioPorUnidad,
           total: cantidad * precioPorUnidad
@@ -339,7 +345,7 @@ export default function GestionCitas({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contratistaId: userId,
-            manoDeObra: parseFloat(formCotizacion.manoDeObra),
+            ...(formCotizacion.desglose ? { desglose: formCotizacion.desglose } : { manoDeObra: parseFloat(formCotizacion.manoDeObra), desglose: [] }),
             materiales: materialesFormateados,
             descripcionTrabajo: formCotizacion.descripcionTrabajo,
 
@@ -353,7 +359,7 @@ export default function GestionCitas({
           body: JSON.stringify({
             citaId: citaParaCotizar._id,
             contratistaId: userId,
-            manoDeObra: parseFloat(formCotizacion.manoDeObra),
+            ...(formCotizacion.desglose ? { desglose: formCotizacion.desglose } : { manoDeObra: parseFloat(formCotizacion.manoDeObra) }),
             materiales: materialesFormateados,
             descripcion: formCotizacion.descripcionTrabajo,
             horasEstimadas: 0,
@@ -615,6 +621,10 @@ export default function GestionCitas({
                           }`}>
                           ${cotizacionActiva.total || cotizacionActiva.precio || 0}
                         </p>
+                        {cotizacionActiva._id && (
+                          <a href={`/api/cotizaciones/${cotizacionActiva._id}/documento`} target="_blank" rel="noopener noreferrer"
+                            className="text-xs font-semibold underline text-slate-700">Ver desglose / PDF</a>
+                        )}
                         {cotizacionActiva.creadoPor && (
                           <p className="text-xs text-slate-600 mt-1">
                             Creada por: Contratista
@@ -817,20 +827,35 @@ export default function GestionCitas({
             </div>
 
             <div className="p-6 space-y-4">
-              {/* Mano de Obra */}
+              {/* Mano de Obra: a mano o desglosada con el cotizador por especialidad */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Mano de Obra ($) *
-                </label>
-                <input
-                  type="number"
-                  value={formCotizacion.manoDeObra}
-                  onChange={(e) => setFormCotizacion(prev => ({ ...prev, manoDeObra: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                />
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Mano de Obra ($) *
+                  </label>
+                  <button type="button"
+                    onClick={() => setFormCotizacion(prev => prev.desglose ? { ...prev, desglose: null, manoDeObra: '' } : { ...prev, desglose: [] })}
+                    className="px-3 py-1.5 text-sm font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
+                    {formCotizacion.desglose ? 'Capturar a mano' : 'Desglosar'}
+                  </button>
+                </div>
+                {formCotizacion.desglose ? (
+                  <DesgloseManoObra
+                    servicioId={citaParaCotizar?.servicio?._id || citaParaCotizar?.servicio}
+                    lineas={formCotizacion.desglose}
+                    onChange={(ls, total) => setFormCotizacion(prev => ({ ...prev, desglose: ls, manoDeObra: total ? String(total) : '' }))}
+                  />
+                ) : (
+                  <input
+                    type="number"
+                    value={formCotizacion.manoDeObra}
+                    onChange={(e) => setFormCotizacion(prev => ({ ...prev, manoDeObra: e.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                  />
+                )}
               </div>
 
               {/* Descripción del Trabajo */}
@@ -901,6 +926,13 @@ export default function GestionCitas({
                     >
                       <FaTrash className="mx-auto" />
                     </button>
+                    <input
+                      type="text"
+                      placeholder="Descripción (marca, medida, color…)"
+                      value={material.descripcion || ''}
+                      onChange={(e) => actualizarMaterial(index, 'descripcion', e.target.value)}
+                      className="col-span-12 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
                   </div>
                 ))}
               </div>

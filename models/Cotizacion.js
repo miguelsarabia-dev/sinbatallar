@@ -27,6 +27,23 @@ const cotizacionSchema = new mongoose.Schema({
     ferreteriaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Ferretero', default: null }
   }],
   manoDeObra: { type: Number, default: 0, min: 0 },
+  // Desglose de la mano de obra con el cotizador por especialidad (lib/cotizador.js). Si existe, manoDeObra es la
+  // suma de los importes (el servidor la recalcula con la tarifa del catálogo). Vacío = mano de obra capturada a mano.
+  desgloseManoObra: [{
+    _id: false,
+    conceptoId: { type: String, required: true },   // SB-xxxx del catálogo
+    especialidad: { type: String, required: true },
+    concepto: { type: String, required: true },
+    unidad: { type: String, required: true },
+    cantidad: { type: Number, required: true, min: 0 },
+    tarifa: { type: Number, required: true, min: 0 },  // snapshot de la tarifa usada (interna: no se le muestra al cliente)
+    factor: { type: Number, default: 1 },
+    minimo: { type: Number, default: 0 },
+    importe: { type: Number, required: true, min: 0 },
+    justificacion: { type: String, trim: true },       // obligatoria si factor > 1
+    nota: { type: String, trim: true }                 // medidas / observaciones
+  }],
+  versionCotizador: { type: String, default: null },
 
   // MODELO INICIAL: día y hora para EMPEZAR el trabajo, acordados en sitio. El cliente los acepta junto con el precio
   // y al aceptar pasan a cita.fechaProgramada / cita.horaInicio.
